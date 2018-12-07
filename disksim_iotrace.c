@@ -545,9 +545,9 @@ static ioreq_event * iotrace_ascii_get_ioreq_event (FILE *tracefile, ioreq_event
    }
 
    //flashsim
-   new->bcount = ((new->blkno+ new->bcount-1)/4 - (new->blkno)/4 + 1) * 4;
-   new->blkno /= 4;
-   new->blkno *= 4;
+   // new->bcount = ((new->blkno+ new->bcount-1)/4 - (new->blkno)/4 + 1) * 4;
+   // new->blkno /= 4;
+   // new->blkno *= 4;
 
    if (new->flags & ASYNCHRONOUS) {
       new->flags |= (new->flags & READ) ? TIME_LIMITED : 0;
