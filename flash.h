@@ -75,7 +75,7 @@
  int real_data_write_sect_num;
  int page_align_padding_sect_num;
  int map_blk_gc_trigger_map_write_num;
- int data_blk_gc_trigger_map_write_num
+ int data_blk_gc_trigger_map_write_num;
 struct blk_state {
    int free;
    int ec;
