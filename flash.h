@@ -70,6 +70,12 @@
 #define IS_SAME_BLK(s1, s2) (((s1) & BLK_MASK_SECT) == ((s2) & BLK_MASK_SECT))
 #define IS_SAME_PAGE(s1, s2) (((s1) & (~OFF_MASK_SECT)) == ((s2) & (~OFF_MASK_SECT)))
 
+ // add zhoujie
+ int translate_map_write_num;
+ int real_data_write_sect_num;
+ int page_align_padding_sect_num;
+ int map_blk_gc_trigger_map_write_num;
+ int data_blk_gc_trigger_map_write_num
 struct blk_state {
    int free;
    int ec;

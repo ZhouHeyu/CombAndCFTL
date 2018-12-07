@@ -404,6 +404,10 @@ double callFsim(unsigned int secno, int scount, int operation)
   }
 
   cnt = bcount;
+  if(operation == 0){
+     real_data_write_sect_num += scount;
+     page_align_padding_sect_num += (bcount*4-scount);
+  }
 
   switch(operation)
   {

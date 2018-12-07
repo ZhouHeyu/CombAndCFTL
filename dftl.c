@@ -188,6 +188,7 @@ int opm_gc_run(int small, int mapdir_flag)
             opagemap[copy_lsn[s]/SECT_NUM_PER_PAGE].ppn = BLK_PAGE_NO_SECT(SECTOR(free_blk_no[small], free_page_no[small]));
 
             nand_page_write(SECTOR(free_blk_no[small],free_page_no[small]) & (~OFF_MASK_SECT), copy_lsn, 1, 2);
+            map_blk_gc_trigger_map_write_num ++;
             free_page_no[small] += SECT_NUM_PER_PAGE;
           }
           else{
@@ -257,7 +258,7 @@ int opm_gc_run(int small, int mapdir_flag)
             opagemap[((temp_arr1[i]/SECT_NUM_PER_PAGE)/MAP_ENTRIES_PER_PAGE)].ppn = BLK_PAGE_NO_SECT(SECTOR(free_blk_no[0], free_page_no[0]));
 
             nand_page_write(SECTOR(free_blk_no[0],free_page_no[0]) & (~OFF_MASK_SECT), copy, 1, 2);
-      
+            data_blk_gc_trigger_map_write_num ++;
             free_page_no[0] += SECT_NUM_PER_PAGE;
 
 

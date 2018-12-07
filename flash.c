@@ -73,6 +73,11 @@ void nand_stat_reset()
   stat_read_num = stat_write_num = stat_erase_num = 0;
   stat_gc_read_num = stat_gc_write_num = 0;
   stat_oob_read_num = stat_oob_write_num = 0;
+  //add zhoujie
+  translate_map_write_num = 0;
+  real_data_write_sect_num = 0;
+  page_align_padding_sect_num = 0;
+
 }
 
 void nand_stat_print(FILE *outFP)
@@ -88,6 +93,18 @@ void nand_stat_print(FILE *outFP)
   fprintf(outFP, " GC page read (#): %8u   ", stat_gc_read_num);
   fprintf(outFP, " GC page write (#): %8u\n", stat_gc_write_num);
   fprintf(outFP, "------------------------------------------------------------\n");
+  fprintf(outFP, "Real CallFsim write sect num is %d\tconvert to Volume is %lfGB\n", real_data_write_sect_num,real_data_write_sect_num*1.0/(1024*1024*2));
+  fprintf(outFP, "Page aligment(2K) padding sector is %d\tconvert to Volume is %lfGB\n",page_align_padding_sect_num,page_align_padding_sect_num*1.0/(1024*1024*2));
+  fprintf(outFP, "map(2K page size) write num is %d\tconvert to Volume is %lfGB\n", translate_map_write_num,translate_map_write_num*2.0/(1024*1024));     
+  fprintf(outFP, "inner map(2K page size) write data-blk GC trigger num is %d\tconvert to Volume is %lfGB\toccupy rate:%lf\n", 
+                                                                              data_blk_gc_trigger_map_write_num,
+                                                                              data_blk_gc_trigger_map_write_num *2.0/((1024*1024)),
+                                                                              data_blk_gc_trigger_map_write_num*1.0/translate_map_write_num);
+  fprintf(outFP, "inner map(2K page size) write map-blk GC trigger num is %d\tconvert to Volume is %lfGB\toccupy rate:%lf\n", 
+                                                                              map_blk_gc_trigger_map_write_num,
+                                                                              map_blk_gc_trigger_map_write_num *2.0/((1024*1024)),
+                                                                              map_blk_gc_trigger_map_write_num*1.0/translate_map_write_num);
+  fprintf(outFP,"--------------------------------------------------------------\n");
 }
 
 /**************** NAND INIT **********************/
@@ -286,6 +303,7 @@ _u8 nand_page_write(_u32 psn, _u32 *lsns, _u8 isGC, int map_flag)
 
   if(map_flag == 2) {
         nand_blk[pbn].page_status[pin/SECT_NUM_PER_PAGE] = 1; // 1 for map table
+        translate_map_write_num ++;
   }
   else{
     nand_blk[pbn].page_status[pin/SECT_NUM_PER_PAGE] = 0; // 0 for data 

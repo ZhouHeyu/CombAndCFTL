@@ -139,7 +139,9 @@ int main (int argc, char **argv)
   }
 
  // warmFlashsynth();
+  nand_stat_reset();
   warmFlash(argv[4]);
+  nand_stat_reset();
 
   disksim_run_simulation ();
 
