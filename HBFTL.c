@@ -12,8 +12,8 @@
 #define MAP_REAL 2
 #define MAP_GHOST 3
 
-static int MAP_REAL_NUM_ENTRIES;
-static int MAP_GHOST_NUM_ENTRIES;
+static int MIX_MAP_REAL_NUM_ENTRIES;
+static int MIX_MAP_GHOST_NUM_ENTRIES;
 
 static int MLC_page_num_for_2nd_map_table;
 static int operation_time;
@@ -44,11 +44,36 @@ static int real_arr[MAP_REAL_MAX_ENTRIES]; // -1 is unvalid value
 #ifdef DEBUG
 int debug_count = 0;
 #endif
+int init_flag = 0;
+/**********Function  Declare**********/
+static void mix_find_real_min();
+static int mix_find_min_ghost_entry();
+static int search_table(int *arr, int size, int val);
+static void mix_find_real_max();
+static int find_free_pos( int *arr, int size);
+/***************************************/
+void HBFTL_init();
+static void Wear_Th_update(int scount);
+double HBFTL_Scheme(unsigned int secno,int scount,int operation);
+
+void read_from_mix_flash(unsigned int secno, int scount, int operation);
+int read_from_SLC(int blkno,int read_num);
+void read_from_MLC(int blkno);
+
+void HBFTL_MLC_Hit_CMT(int blkno,int operation);
+void HBFTL_MLC_No_Hit_CMT(int blkno,int operation);
+void Write_2_SLC(unsigned int secno, int scount);
+void Write_2_MLC(unsigned int secno,int scount);
+int Check_blkno_in_MLC(int blkno);
+int Check_blkno_in_SLC(int blkno);
+
+static int MLC_opm_invalid(int lpn);
+static int SLC_opm_invalid(int lpn);
 /***********************************************
  *  some 	inner function
  * Date :10.12.2018 
  * ********************************************/
-static void find_real_min()
+static void mix_find_real_min()
 {
   int i,index; 
   int temp = 99999999;
@@ -65,7 +90,7 @@ static void find_real_min()
       
 }
 
-static int find_min_ghost_entry()
+static int mix_find_min_ghost_entry()
 {
   int i; 
 
@@ -103,7 +128,7 @@ static int search_table(int *arr, int size, int val)
     return -1;
 }
 
-static void find_real_max()
+static void mix_find_real_max()
 {
   int i; 
 
@@ -143,8 +168,8 @@ void HBFTL_init()
 	memset(ghost_arr, -1, sizeof(int) * MAP_GHOST_MAX_ENTRIES);
 	memset(real_arr, -1, sizeof(int) * MAP_REAL_MAX_ENTRIES);
 	update_reqd = 0;
-	MAP_REAL_NUM_ENTRIES = 0;
-	MAP_GHOST_NUM_ENTRIES = 0;
+	MIX_MAP_REAL_NUM_ENTRIES = 0;
+	MIX_MAP_GHOST_NUM_ENTRIES = 0;
 	
 	Wear_Th = 8;
 	operation_time = 0;
@@ -183,16 +208,15 @@ static void Wear_Th_update(int scount)
 	 Curr_Count += scount;
 	 if(Curr_Count >= COMB_CYCLE_COUNTS){
 		Curr_Count = 0;
-		Temp_Comb_Tau = ((SLC_to_MLC_counts-last_SLC_to_MLC_counts) * 1.0 * M_SECT_NUM_PER_PAGE)/COMB_CYCLE_COUNTS;
+		Temp_Comb_Tau = ((SLC_to_MLC_counts-last_SLC_to_MLC_Counts) * 1.0 * M_SECT_NUM_PER_PAGE)/COMB_CYCLE_COUNTS;
 		last_SLC_to_MLC_Counts = SLC_to_MLC_counts;
         // 要改
 		if(Temp_Comb_Tau >= (Comb_Tau+Comb_Tau_std)){
-			Wear_Th -=2 ;
-			Wear_Th = (Wear_Th > MAX_TH) ? MAX_TH : Wear_Th;
-			
-		}else if(Temp_Comb_Tau <=(Comb_Tau -Comb_Tau_std)){
 			Wear_Th -= 2;
 			Wear_Th = (Wear_Th < MIN_TH) ? MIN_TH : Wear_Th;
+		}else if(Temp_Comb_Tau <=(Comb_Tau -Comb_Tau_std)){
+			Wear_Th +=2 ;
+			Wear_Th = (Wear_Th > MAX_TH) ? MAX_TH : Wear_Th;
 		}else{
 			printf("Temp_Comb_Tau is %lf\n",Temp_Comb_Tau);
 		}
@@ -201,9 +225,10 @@ static void Wear_Th_update(int scount)
    
 }
 
-int init_flag = 0;
+
 double HBFTL_Scheme(unsigned int secno,int scount,int operation)
 {
+	double delay = 0.0;
 	if(init_flag == 0){
 		HBFTL_init();
 	}
@@ -222,7 +247,8 @@ double HBFTL_Scheme(unsigned int secno,int scount,int operation)
 		//check data storge in where
 		read_from_mix_flash(secno,scount,operation);
 	}
-	
+	delay = calculate_delay_MLC_flash() + calculate_delay_SLC_flash();
+	return delay;
 }
 
 
@@ -231,7 +257,7 @@ double HBFTL_Scheme(unsigned int secno,int scount,int operation)
  * date :10.12.2018
  * attention : data maybe alignment in 2K or 4K
  * *********************************************************/
-void read_from_mix_flash(unsigned in secno, int scount, int operation)
+void read_from_mix_flash(unsigned int secno, int scount, int operation)
 {
 	int bcount_4K,blkno_2K,blkno_4K,cnt;
 	
@@ -354,10 +380,10 @@ void HBFTL_MLC_Hit_CMT(int blkno,int operation)
 		//Hit Map_Ghost	maybe move to real list
 		if ( real_min == -1 ) {
 			real_min = 0;
-			find_real_min();
+			mix_find_real_min();
 		}    
 		if(MLC_opagemap[real_min].map_age <= MLC_opagemap[blkno].map_age) {
-			find_real_min();  // probably the blkno is the new real_min alwaz
+			mix_find_real_min();  // probably the blkno is the new real_min alwaz
 			MLC_opagemap[blkno].map_status = MAP_REAL;
 			MLC_opagemap[real_min].map_status = MAP_GHOST;
 			pos_ghost = search_table(ghost_arr,MAP_GHOST_MAX_ENTRIES,blkno);
@@ -373,7 +399,7 @@ void HBFTL_MLC_Hit_CMT(int blkno,int operation)
 	// Hit Map_Real 
 		if ( real_max == -1 ) {
 			real_max = 0;
-			find_real_max();
+			mix_find_real_max();
 			printf("Never happend\n");
 		}
 
@@ -402,11 +428,11 @@ void HBFTL_MLC_No_Hit_CMT(int blkno,int operation)
 	int pos=-1,pos_real=-1,pos_ghost=-1;
 
 	//real-CMT is full
-	if((MAP_REAL_MAX_ENTRIES - MAP_REAL_NUM_ENTRIES) == 0){
+	if((MAP_REAL_MAX_ENTRIES - MIX_MAP_REAL_NUM_ENTRIES) == 0){
 		//ghost-CMT is full
-		if((MAP_GHOST_MAX_ENTRIES - MAP_GHOST_NUM_ENTRIES) == 0){
+		if((MAP_GHOST_MAX_ENTRIES - MIX_MAP_GHOST_NUM_ENTRIES) == 0){
 			//rm ghost-CMT-entry
-			min_ghost = find_min_ghost_entry():
+			min_ghost = mix_find_min_ghost_entry();
 			if(MLC_opagemap[min_ghost].update == 1){
 				update_reqd ++;
 				MLC_opagemap[min_ghost].update = 0;
@@ -417,9 +443,9 @@ void HBFTL_MLC_No_Hit_CMT(int blkno,int operation)
 			}
 			MLC_opagemap[min_ghost].map_status = MAP_INVALID;
 			
-			MAP_GHOST_NUM_ENTRIES --;
-			MAP_REAL_NUM_ENTRIES ++;
-			find_real_min();
+			MIX_MAP_GHOST_NUM_ENTRIES --;
+			MIX_MAP_REAL_NUM_ENTRIES ++;
+			mix_find_real_min();
 			MLC_opagemap[real_min].map_status = MAP_GHOST;
 			pos = search_table(ghost_arr, MAP_GHOST_MAX_ENTRIES,min_ghost);
 			ASSERT(pos == -1);
@@ -429,8 +455,8 @@ void HBFTL_MLC_No_Hit_CMT(int blkno,int operation)
 			real_arr[pos] = -1;
 		}else{
 			// ghost-list not full
-			MAP_REAL_NUM_ENTRIES --;
-			find_real_min();
+			MIX_MAP_REAL_NUM_ENTRIES --;
+			mix_find_real_min();
 			MLC_opagemap[real_min].map_status = MAP_GHOST;
 			pos = search_table(real_arr,MAP_REAL_MAX_ENTRIES,real_min);
 			ASSERT(pos != -1);
@@ -438,15 +464,15 @@ void HBFTL_MLC_No_Hit_CMT(int blkno,int operation)
 			pos = find_free_pos(ghost_arr,MAP_GHOST_MAX_ENTRIES);
 			ASSERT(pos !=-1);
 			ghost_arr[pos] = real_min;
-			MAP_GHOST_NUM_ENTRIES++;
+			MIX_MAP_GHOST_NUM_ENTRIES++;
 		}
 	}
 	// read from 2nd mapping table load into CMT
-	send_flash_request((blkno - MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE * M_SECT_NUM_PER_PAGE, M_SECT_NUM_PER_PAGE, 1, 2);
+	send_flash_request( ((blkno - MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE * M_SECT_NUM_PER_PAGE), M_SECT_NUM_PER_PAGE, 1, 2);
 	MLC_opagemap[blkno].map_status = MAP_REAL;
 	MLC_opagemap[blkno].map_age = operation_time;
 	real_max = blkno;
-	MAP_REAL_NUM_ENTRIES ++;			
+	MIX_MAP_REAL_NUM_ENTRIES ++;			
 	pos = find_free_pos(real_arr,MAP_REAL_MAX_ENTRIES);
 	real_arr[pos] = blkno;	
 }
@@ -536,12 +562,12 @@ int Check_blkno_in_MLC(int blkno)
 			pos = search_table(real_arr, MAP_REAL_MAX_ENTRIES, blkno);
 			ASSERT(pos !=-1 );
 			real_arr[pos] = -1;
-			MAP_REAL_NUM_ENTRIES -- ;		
+			MIX_MAP_REAL_NUM_ENTRIES -- ;		
 		}else if(MLC_opagemap[blkno].map_status == MAP_GHOST){
 			pos = search_table(ghost_arr, MAP_GHOST_MAX_ENTRIES,blkno);
 			ASSERT(pos !=-1 );
 			ghost_arr[pos] = -1;
-			MAP_GHOST_NUM_ENTRIES --;
+			MIX_MAP_GHOST_NUM_ENTRIES --;
 		}
 		//invalid MLC page data and reset MLC_opagemap state
 		MLC_opm_invalid(blkno);
@@ -578,7 +604,7 @@ int Check_blkno_in_SLC(int blkno)
  * return value : INVALID PAGE SIZE
  * attention : MLC lpn(based on 4K) + map_lpn_addres
  ******************************************/
-int MLC_opm_invalid(int lpn)
+static int MLC_opm_invalid(int lpn)
 {
   
   int s_lsn = lpn * M_SECT_NUM_PER_PAGE;
@@ -605,7 +631,7 @@ int MLC_opm_invalid(int lpn)
  * return value : INVALID PAGE SIZE
  * attention : 
  ******************************************/
-int SLC_opm_invalid(int lpn)
+static int SLC_opm_invalid(int lpn)
 {
   
   int s_lsn = lpn * S_SECT_NUM_PER_PAGE;
