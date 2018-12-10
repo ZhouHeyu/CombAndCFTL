@@ -8,6 +8,9 @@
  * 
  */
 
+#ifndef _DFTL_H_
+#define _DFTL_H_
+
 #include "type.h"
 
 #define MAP_INVALID 1 
@@ -53,3 +56,6 @@ static int SYNC_NUM;
 
 sect_t opagemap_num;
 struct opm_entry *opagemap;
+
+#endif
+
