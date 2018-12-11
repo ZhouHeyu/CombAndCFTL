@@ -11,7 +11,7 @@
 #include "disksim_global.h"
 #include "HBFTL.h"
 
-struct mix_omap_dir *MLC_mapdir;
+static struct mix_omap_dir *MLC_mapdir;
 
 extern struct SLC_nand_blk_info * SLC_head;
 extern struct SLC_nand_blk_info * SLC_tail;
@@ -35,15 +35,15 @@ extern int MLC_page_num_for_2nd_map_table;
 static int slc_limit_num = 6;
 
 /*************Inner Function*************/
-size_t SLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag);
-size_t MLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag);
-size_t SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag);  
-size_t MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag);
-_u32 MLC_opm_gc_cost_benefit();
-int SLC_opm_gc_get_free_blk(int small, int mapdir_flag);
-int MLC_opm_gc_get_free_blk(int small, int mapdir_flag);
+size_t CFTL_SLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag);
+size_t CFTL_MLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag);
+size_t CFTL_SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag);  
+size_t CFTL_MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag);
+_u32 CFTL_MLC_opm_gc_cost_benefit();
+int CFTL_SLC_opm_gc_get_free_blk(int small, int mapdir_flag);
+int CFTL_MLC_opm_gc_get_free_blk(int small, int mapdir_flag);
 
-void SLC_data_move(int blk)
+void CFTL_SLC_data_move(int blk)
 {
      int i,valid_flag,valid_sect_num;
      int blkno,bcount;
@@ -88,14 +88,14 @@ void CFTL_SLC_get_write_blk(int small)
 		SLC_head ++;
 		if((SLC_head -SLC_nand_blk) == ( SLC_USER_BLK_NUM - slc_limit_num)){
 			victim_blk_no = SLC_tail - SLC_nand_blk;
-			SLC_data_move(victim_blk_no);
+			CFTL_SLC_data_move(victim_blk_no);
 			SLC_tail ++;
 		}
 	}else if((SLC_head-SLC_nand_blk) < (SLC_tail-SLC_nand_blk) && (SLC_head-SLC_nand_blk) < (SLC_USER_BLK_NUM -slc_limit_num)){
 		/**(nand-arr-head) ---> SLC_Head -------> SLC_tail ---> (nand-arr-end)**/
 		/**								|size >= slc_limit_num|              **/
 		victim_blk_no = SLC_tail - SLC_nand_blk;
-		SLC_data_move(victim_blk_no);
+		CFTL_SLC_data_move(victim_blk_no);
 		SLC_head ++;
 		SLC_tail ++;
 		if((SLC_tail - SLC_nand_blk) == SLC_USER_BLK_NUM){
@@ -106,7 +106,7 @@ void CFTL_SLC_get_write_blk(int small)
 		/**(nand-arr-head) -------(SLC-tail?)-------> SLC_Head ----------(SLC-tail?)---------------> (nand-arr-end)**/
 		/**													  |    0<=  size  <=slc_limit_num       |              **/
 		 victim_blk_no = SLC_tail - SLC_nand_blk;
-         SLC_data_move(victim_blk_no); 
+         CFTL_SLC_data_move(victim_blk_no); 
          SLC_head++;        
          SLC_tail++;
          if((SLC_head-SLC_nand_blk) == SLC_USER_BLK_NUM){
@@ -116,7 +116,7 @@ void CFTL_SLC_get_write_blk(int small)
 	}else{
 		 /********other station **************/
 	     victim_blk_no = SLC_tail-SLC_nand_blk;
-         SLC_data_move(victim_blk_no);
+         CFTL_SLC_data_move(victim_blk_no);
          SLC_head++;
          SLC_tail++;
          if((SLC_tail-SLC_nand_blk) == SLC_USER_BLK_NUM ){
@@ -136,7 +136,7 @@ void CFTL_SLC_get_write_blk(int small)
  * Author : zhoujie
  * Attention : based Greedy methods to find max ipc blk to erase
  * *************************************/
-_u32 MLC_opm_gc_cost_benefit()
+_u32 CFTL_MLC_opm_gc_cost_benefit()
 {
   int max_cb = 0;
   int blk_cb;
@@ -162,7 +162,7 @@ _u32 MLC_opm_gc_cost_benefit()
 }
 
 /**************************MIX_SSD_READ***************************************/
-size_t SLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag)
+size_t CFTL_SLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag)
 {
   int i;
   int lpn = lsn/S_SECT_NUM_PER_PAGE; // logical page number
@@ -197,7 +197,7 @@ size_t SLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag)
   return sect_num;
 }
 
-size_t MLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag)
+size_t CFTL_MLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag)
 {
   int i;
   int lpn = lsn/M_SECT_NUM_PER_PAGE; // logical page number
@@ -239,7 +239,7 @@ size_t MLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag)
 }
 
 /***************************MIX_SSD_GET_FREE_BLK***********************************************/
-int SLC_opm_gc_get_free_blk(int small, int mapdir_flag)
+int CFTL_SLC_opm_gc_get_free_blk(int small, int mapdir_flag)
 {
   if (free_SLC_page_no[small] >= S_SECT_NUM_PER_BLK) {
 
@@ -253,7 +253,7 @@ int SLC_opm_gc_get_free_blk(int small, int mapdir_flag)
   return 0;
 }
 
-int MLC_opm_gc_get_free_blk(int small, int mapdir_flag)
+int CFTL_MLC_opm_gc_get_free_blk(int small, int mapdir_flag)
 {
   if (free_MLC_page_no[small] >= M_SECT_NUM_PER_BLK) {
 
@@ -268,7 +268,7 @@ int MLC_opm_gc_get_free_blk(int small, int mapdir_flag)
 }
 
 /*************************MIX_SSD_GC_RUN********************************/
-int MLC_opm_gc_run(int small, int mapdir_flag)
+int CFTL_MLC_opm_gc_run(int small, int mapdir_flag)
 {
   blk_t victim_blk_no;
   int merge_count;
@@ -279,7 +279,7 @@ int MLC_opm_gc_run(int small, int mapdir_flag)
   _u32 copy_lsn[M_SECT_NUM_PER_PAGE], copy[M_SECT_NUM_PER_PAGE];
   _u16 valid_sect_num,  l, s;
 
-  victim_blk_no = MLC_opm_gc_cost_benefit();
+  victim_blk_no = CFTL_MLC_opm_gc_cost_benefit();
   memset(copy_lsn, 0xFF, sizeof (copy_lsn));
 
   s = k = M_OFF_F_SECT(free_MLC_page_no[small]);
@@ -325,7 +325,7 @@ int MLC_opm_gc_run(int small, int mapdir_flag)
           copy_lsn[k] = copy[j];
           k++;
         }
-        benefit += MLC_opm_gc_get_free_blk(small, mapdir_flag);
+        benefit += CFTL_MLC_opm_gc_get_free_blk(small, mapdir_flag);
         
 	    if(MLC_nand_blk[victim_blk_no].page_status[i] == 1){
 			// map blk gc                       
@@ -409,7 +409,7 @@ int MLC_opm_gc_run(int small, int mapdir_flag)
 
 
 /*************************MIX_SSD_WRITE********************************************/
-size_t SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)  
+size_t CFTL_SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)  
 {
   int i;
   int lpn = lsn/S_SECT_NUM_PER_PAGE; // logical page number
@@ -467,7 +467,7 @@ size_t SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)
 }
 
 
-size_t MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)  
+size_t CFTL_MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)  
 {
   int i;
   int lpn = lsn/M_SECT_NUM_PER_PAGE; // logical page number
@@ -498,9 +498,9 @@ size_t MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)
     if ((free_MLC_blk_no[small] = nand_get_MLC_free_blk(0)) == -1) {
 		int j = 0;
 		while (free_MLC_blk_num < MIN_FREE_BLK_NUM ){
-			j += MLC_opm_gc_run(small, mapdir_flag);
+			j += CFTL_MLC_opm_gc_run(small, mapdir_flag);
 		}
-		MLC_opm_gc_get_free_blk(small, mapdir_flag);
+		CFTL_MLC_opm_gc_get_free_blk(small, mapdir_flag);
     } else {
 		free_MLC_page_no[small] = 0;
     }
@@ -552,9 +552,9 @@ size_t CFTL_read(sect_t lsn, sect_t size, int mapdir_flag)
 {
    int sect_num ;
    if(mapdir_flag == 0){
-		sect_num = SLC_opm_read(lsn, size ,mapdir_flag);
+		sect_num = CFTL_SLC_opm_read(lsn, size ,mapdir_flag);
    }else if(mapdir_flag >= 1 && mapdir_flag <=2){
-		sect_num = MLC_opm_read(lsn, size, mapdir_flag);
+		sect_num = CFTL_MLC_opm_read(lsn, size, mapdir_flag);
    }else{
 	    printf("mapdir_flag must select(0,1,2)\n");
 		assert(0);
@@ -566,9 +566,9 @@ size_t CFTL_write(sect_t lsn, sect_t size, int mapdir_flag)
 {
 	int sect_num;
 	if(mapdir_flag == 0){
-		sect_num = SLC_opm_write(lsn, size ,mapdir_flag);
+		sect_num = CFTL_SLC_opm_write(lsn, size ,mapdir_flag);
 	}else if(mapdir_flag >= 1 && mapdir_flag <=2){
-		sect_num = MLC_opm_write(lsn, size, mapdir_flag);
+		sect_num = CFTL_MLC_opm_write(lsn, size, mapdir_flag);
 	}else{
 		printf("mapdir_flag must select(0,1,2)\n");
 		assert(0);
@@ -671,7 +671,7 @@ int CFTL_init(blk_t MLC_blk_num, blk_t extra_num )
   //update 2nd mapping table  
   for(i = 0; i< MLC_mapdir_num ; i++){
     ASSERT(MLC_MAP_ENTRIES_PER_PAGE == 1024);
-    MLC_opm_write(i*M_SECT_NUM_PER_PAGE, M_SECT_NUM_PER_PAGE, 2);
+    CFTL_MLC_opm_write(i*M_SECT_NUM_PER_PAGE, M_SECT_NUM_PER_PAGE, 2);
   }
 
   return 0;
