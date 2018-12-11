@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "flash.h"
-#include "Comb.h"
+#include "CombFTL.h"
 #include "ssd_interface.h"
 #include "disksim_global.h"
 #include "HBFTL.h"
@@ -19,6 +19,8 @@ static _u32 free_SLC_blk_no[2];
 static _u32 free_MLC_blk_no[2];
 static _u16 free_SLC_page_no[2];
 static _u16 free_MLC_page_no[2];
+static _u16 free_cold_page_no;
+static _u16 free_cold_blk_no;
 
 #define HOT_FREE_MIN 4
 #define COLD_FREE_MIN 4
@@ -399,11 +401,8 @@ size_t Comb_SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)
     }
 	//create new ppn --> lpn relation map
 	SLC_opagemap[lpn].ppn = ppn;
-	
-    if(region_flag == 0)
-        free_SLC_page_no[small] += S_SECT_NUM_PER_PAGE;
-    else
-        free_cold_page_no += S_SECT_NUM_PER_PAGE;
+    free_SLC_page_no[small] += S_SECT_NUM_PER_PAGE;
+    
     SLC_nand_page_write(s_psn, lsns, 0, mapdir_flag);
     return sect_num;
 
@@ -500,7 +499,7 @@ void Comb_SLC_Hot_Circular_Que()
             SLC_head++;
         }
         else{
-            SLC_blk_index = tail - SLC_nand_blk;
+            SLC_blk_index = SLC_tail - SLC_nand_blk;
             SLC_head++;
             Comb_SLC_data_move(SLC_blk_index);
             SLC_tail++;
@@ -537,7 +536,7 @@ void Comb_SLC_Hot2Cold(int blk)
     for(i=0;i<S_PAGE_NUM_PER_BLK;i++){
 		while(free_cold_page_no >= S_SECT_NUM_PER_BLK)//if (free_cold_page_no >= S_SECT_NUM_PER_BLK) 
         {
-            free_cold_blk_no = nand_get_cold_free_blk(0);
+            free_cold_blk_no = SLC_nand_get_cold_free_blk(0);
             free_cold_page_no = 0;
             Comb_SLC_Cold_Circular_Que();
         }
@@ -613,7 +612,7 @@ size_t Comb_write(sect_t lsn, sect_t size, int mapdir_flag)
 	int sect_num;
 	if(mapdir_flag == 0){
 		//data write to SLC hot region
-		sect_num = Comb_SLC_opm_write(lsn, size ,mapdir_flag,0);
+		sect_num = Comb_SLC_opm_write(lsn, size ,mapdir_flag);
 	}else if(mapdir_flag >= 1 && mapdir_flag <=2){
 		sect_num = Comb_MLC_opm_write(lsn, size, mapdir_flag);
 	}else{
@@ -629,8 +628,8 @@ void Comb_end()
     free(SLC_opagemap);
     
   }
-  if(mapdir != NULL){
-	free(mapdir);
+  if(MLC_mapdir != NULL){
+	free(MLC_mapdir);
   }
   
   if(MLC_opagemap != NULL){
@@ -646,7 +645,7 @@ int Comb_init(blk_t MLC_blk_num, blk_t extra_num )
 {
   int i;
   int MLC_mapdir_num;
-  All_Volume_Sect = MLC_blk_num * M_SECT_NUM_PER_BLK * (1 + SLC_ratio);
+  int All_Volume_Sect = MLC_blk_num * M_SECT_NUM_PER_BLK * (1 + SLC_ratio);
   
   SLC_opagemap_num = All_Volume_Sect / S_SECT_NUM_PER_PAGE;
   if(All_Volume_Sect % S_SECT_NUM_PER_PAGE !=0){
@@ -702,6 +701,10 @@ int Comb_init(blk_t MLC_blk_num, blk_t extra_num )
   //wfk:获取第0个块作为SLC的data blk
   free_SLC_blk_no[1] = nand_get_SLC_free_blk(0);
   free_SLC_page_no[1] = 0;
+  
+  free_cold_blk_no = SLC_nand_get_cold_free_blk(0);
+  free_cold_page_no = 0;
+  
   //wfk:获取第4096个块作为MLC翻译块
   free_MLC_blk_no[0] = nand_get_MLC_free_blk(0);
   free_MLC_page_no[0] = 0;
@@ -710,8 +713,6 @@ int Comb_init(blk_t MLC_blk_num, blk_t extra_num )
   free_MLC_page_no[1] = 0;
   //initialize variables
   SYNC_NUM = 0;
-  
-  
   
   
   SLC_write_count = 0;

@@ -524,6 +524,8 @@ _u32 nand_get_free_blk (int isGC)
   return -1;
 }
 
+// blk_no=cold_head-&SLC_nand_blk[0];
+
 /*****************************MixSSD Function***************************/
 void mix_nand_stat_reset()
 {
@@ -1229,4 +1231,38 @@ void mix_nand_stat_print(FILE *outFP)
   for(i=0; i < nand_MLC_blk_num ; i++){
 	fprintf(outFP,"MLCNANDBLK ECN %d\n",MLC_nand_blk[i].state.ec);
   }
+}
+
+/************************************
+ *  this code may be to delete
+ * **********************************/
+_u32 SLC_nand_get_cold_free_blk (int isGC) 
+{
+  _u32 blk_no=-1 , i;
+  int flag = 0,flag1=0;
+  flag = 0;
+  flag1 = 0;
+  MIN_ERASE = 9999999;
+
+   blk_no = SLC_cold_head - &SLC_nand_blk[0];
+   if(SLC_nand_blk[blk_no].state.free==1){
+      flag=1;
+   } 
+      
+  if ( flag == 1) {
+        flag = 0;
+        ASSERT(SLC_nand_blk[blk_no].fpc == S_SECT_NUM_PER_BLK);
+        ASSERT(SLC_nand_blk[blk_no].ipc == 0);
+        ASSERT(SLC_nand_blk[blk_no].lwn == -1);
+        SLC_nand_blk[blk_no].state.free = 0;
+
+        free_blk_idx = blk_no;
+        free_cold_blk_num--;
+       // printf("获取cold块成功，块号：%d\n",blk_no);
+        return blk_no;
+  }
+  else{
+    printf("shouldn't reach...\n");
+  }
+  return -1;
 }
