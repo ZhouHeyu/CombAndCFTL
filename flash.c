@@ -24,6 +24,9 @@ struct MLC_nand_blk_info * MLC_nand_blk;
 struct SLC_nand_blk_info * SLC_head;
 struct SLC_nand_blk_info * SLC_tail;
 
+struct SLC_nand_blk_info * SLC_cold_head;
+struct SLC_nand_blk_info * SLC_cold_tail;
+double Comb_SLC_Hot_ratio = 0.75;
 int merge_switch_num;
 int merge_partial_num;
 int merge_full_num;
@@ -609,6 +612,12 @@ int mix_nand_init (_u32 SLC_blk_num,_u32 MLC_blk_num, _u8 min_free_blk_num)
     }
   }
   
+  SLC_head = SLC_tail = & SLC_nand_blk[0];
+  SLC_ARR_LEN = SLC_blk_num;
+  SLC_COLD_ARR_LEN = SLC_ARR_LEN * Comb_SLC_Hot_ratio;
+  SLC_HOT_ARR_LEN = SLC_ARR_LEN * (1 - Comb_SLC_Hot_ratio);
+  
+  SLC_cold_head = SLC_cold_tail = &SLC_nand_blk[SLC_COLD_ARR_LEN];
   free_SLC_blk_num = nand_SLC_blk_num;
   free_MLC_blk_num = nand_MLC_blk_num;
   free_blk_idx =0;

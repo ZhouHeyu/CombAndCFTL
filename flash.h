@@ -240,6 +240,9 @@ extern _u8  pb_size;
 extern struct nand_blk_info *nand_blk;
 extern struct SLC_nand_blk_info *SLC_nand_blk;
 extern struct MLC_nand_blk_info *MLC_nand_blk;
+int SLC_HOT_ARR_LEN; 
+int SLC_COLD_ARR_LEN;
+int SLC_ARR_LEN;
 extern FILE *fp_erase;
 
 int nand_init (_u32 blk_num, _u8 min_free_blk_num);

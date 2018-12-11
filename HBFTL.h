@@ -20,6 +20,7 @@ struct mix_opm_entry {
   int  map_status;
   int  map_age;
   int  update;
+  int  count;
 };
 
 struct mix_omap_dir{

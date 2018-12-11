@@ -704,6 +704,7 @@ static int SLC_opm_invalid(int lpn)
   SLC_opagemap[lpn].map_age = 0;
   SLC_opagemap[lpn].update = 0;
   SLC_opagemap[lpn].free = 1;
+  SLC_opagemap[lpn].count = 0;
   
   return S_SECT_NUM_PER_PAGE;
 }
