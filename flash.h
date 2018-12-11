@@ -263,6 +263,8 @@ int nand_oob_read(_u32 psn);
 //~ void hot_nand_erase (_u32 blk_no);
 void mix_nand_stat_reset();
 int mix_nand_init (_u32 SLC_blk_num,_u32 MLC_blk_num, _u8 min_free_blk_num);
+void mix_nand_end ();
+void mix_nand_stat_print(FILE *outFP);
 int MLC_nand_oob_read(_u32 psn);
 int SLC_nand_oob_read(_u32 psn);
 _u8 MLC_nand_page_read(_u32 psn, _u32 *lsns, _u8 isGC);

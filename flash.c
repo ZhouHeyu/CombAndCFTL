@@ -23,6 +23,12 @@ struct SLC_nand_blk_info * SLC_nand_blk;
 struct MLC_nand_blk_info * MLC_nand_blk;
 struct SLC_nand_blk_info * SLC_head;
 struct SLC_nand_blk_info * SLC_tail;
+
+int merge_switch_num;
+int merge_partial_num;
+int merge_full_num;
+
+
 int MIN_ERASE;
 
 /**************** NAND STAT **********************/
@@ -144,6 +150,7 @@ void nand_stat_reset()
   stat_read_num = stat_write_num = stat_erase_num = 0;
   stat_gc_read_num = stat_gc_write_num = 0;
   stat_oob_read_num = stat_oob_write_num = 0;
+  merge_switch_num = merge_partial_num = merge_full_num = 0;
 }
 
 void nand_stat_print(FILE *outFP)
@@ -531,6 +538,7 @@ void mix_nand_stat_reset()
   map_blk_gc_trigger_map_write_num = 0; 
   SLC_to_MLC_counts = 0;
   SLC_to_SLC_counts = 0;
+  merge_switch_num = merge_partial_num = merge_full_num = 0;
 }
 
 void mix_nand_end ()
@@ -918,7 +926,10 @@ void SLC_nand_erase (_u32 blk_no)
   for(i = 0; i < S_PAGE_NUM_PER_BLK; i++){
     SLC_nand_blk[blk_no].page_status[i] = -1;
   }
-  printf("擦除的块号＝%d\n",blk_no);
+  
+//#ifdef DEBUG
+  //printf("擦除的块号＝%d\n",blk_no);
+//#endif
   free_SLC_blk_num++;
 
   nand_stat(SLC_BLOCK_ERASE);
@@ -1036,7 +1047,9 @@ _u32 nand_get_SLC_free_blk (int isGC)
 
         free_blk_idx = blk_no;
         free_SLC_blk_num--;
-        printf("获取成功，块号：%d\n",blk_no);
+ //~ #ifdef DEBUG
+        //~ printf("获取成功，块号：%d\n",blk_no);
+ //~ #endif
         return blk_no;
   }
   else{

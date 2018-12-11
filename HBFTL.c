@@ -73,6 +73,31 @@ static int SLC_opm_invalid(int lpn);
  *  some 	inner function
  * Date :10.12.2018 
  * ********************************************/
+#ifdef DEBUG
+int compute_real_arr_size()
+{
+	int len =0,i;
+	for(i=0; i <MAP_REAL_MAX_ENTRIES;i++ ){
+		if(real_arr[i] != -1){
+			len ++;
+		}
+	}
+	return len;
+}
+
+int compute_ghost_arr_size()
+{
+	int len =0,i;
+	for(i=0; i <MAP_GHOST_MAX_ENTRIES;i++ ){
+		if(ghost_arr[i] != -1){
+			len ++;
+		}
+	}
+	return len;
+}
+#endif
+
+
 static void mix_find_real_min()
 {
   int i,index; 
@@ -150,7 +175,7 @@ static int find_free_pos( int *arr, int size)
         }
     } 
     printf("shouldnt come here for find_free_pos()");
-    exit(1);
+    assert(0);
     return -1;
 }
 /*********************************************************/
@@ -168,6 +193,7 @@ void HBFTL_init()
 	memset(ghost_arr, -1, sizeof(int) * MAP_GHOST_MAX_ENTRIES);
 	memset(real_arr, -1, sizeof(int) * MAP_REAL_MAX_ENTRIES);
 	update_reqd = 0;
+
 	MIX_MAP_REAL_NUM_ENTRIES = 0;
 	MIX_MAP_GHOST_NUM_ENTRIES = 0;
 	
@@ -201,9 +227,10 @@ static void Wear_Th_update(int scount)
 		}  
 		Wear_Th = (CFTL_Sum * 1.0)/ CFTL_CYCLE_COUNTS + 3;
 		Curr_Count = 0; 
+		memset(CFTL_Window, 0, sizeof(int) * CFTL_CYCLE_COUNTS);
 	  }
 	  
-   }else if(ftl_type ==6 ){
+   }else if(ftl_type == 6){
 	 // CombFTL Th update
 	 Curr_Count += scount;
 	 if(Curr_Count >= COMB_CYCLE_COUNTS){
@@ -211,11 +238,11 @@ static void Wear_Th_update(int scount)
 		Temp_Comb_Tau = ((SLC_to_MLC_counts-last_SLC_to_MLC_Counts) * 1.0 * M_SECT_NUM_PER_PAGE)/COMB_CYCLE_COUNTS;
 		last_SLC_to_MLC_Counts = SLC_to_MLC_counts;
         // 要改
-		if(Temp_Comb_Tau >= (Comb_Tau+Comb_Tau_std)){
+		if(Temp_Comb_Tau >= (Comb_Tau + Comb_Tau_std)){
 			Wear_Th -= 2;
 			Wear_Th = (Wear_Th < MIN_TH) ? MIN_TH : Wear_Th;
 		}else if(Temp_Comb_Tau <=(Comb_Tau -Comb_Tau_std)){
-			Wear_Th +=2 ;
+			Wear_Th += 2;
 			Wear_Th = (Wear_Th > MAX_TH) ? MAX_TH : Wear_Th;
 		}else{
 			printf("Temp_Comb_Tau is %lf\n",Temp_Comb_Tau);
@@ -229,12 +256,18 @@ static void Wear_Th_update(int scount)
 double HBFTL_Scheme(unsigned int secno,int scount,int operation)
 {
 	double delay = 0.0;
+	int page_align = 0;
 	if(init_flag == 0){
 		HBFTL_init();
 	}
 	
 	if(operation == DATA_WRITE){
+		real_data_write_sect_num += scount;
+		//based on 4K(this problem need to slove)
+		page_align = (secno + scount -1)/M_SECT_NUM_PER_PAGE - (secno)/M_SECT_NUM_PER_PAGE + 1;
+		page_align_padding_sect_num +=(page_align * M_SECT_NUM_PER_PAGE -scount);
 		
+		Wear_Th_update(scount);
 		if(scount >= Wear_Th){
 			// write to MLC
 			Write_2_MLC(secno, scount);
@@ -264,22 +297,27 @@ void read_from_mix_flash(unsigned int secno, int scount, int operation)
 	int Is_in_SLC,Is_in_MLC; // 1: MLC 2: SLC
 	
 	blkno_4K = secno/M_SECT_NUM_PER_PAGE + MLC_page_num_for_2nd_map_table;
-	blkno_2K = secno/S_SECT_NUM_PER_PAGE;
+	//attention compute page aligin
+	blkno_2K = (secno/M_SECT_NUM_PER_PAGE)*(M_SECT_NUM_PER_PAGE/S_SECT_NUM_PER_PAGE);
 	bcount_4K =  (secno + scount -1)/M_SECT_NUM_PER_PAGE - (secno)/M_SECT_NUM_PER_PAGE + 1;
 	cnt = bcount_4K;
+#ifdef DEBUG
+
+#endif
 	while(cnt > 0){
 		cnt--;
 		operation_time ++;
 		Is_in_SLC = Is_in_MLC = 0;
-		if(SLC_opagemap[blkno_2K].free == 0 && SLC_opagemap[blkno_2K].ppn != -1){
+		if(SLC_opagemap[blkno_2K].free == 0 ){
 			Is_in_SLC = 1; 
 		}
-		if(MLC_opagemap[blkno_4K].free == 0 && MLC_opagemap[blkno_4K].ppn != -1){
+		if(MLC_opagemap[blkno_4K].free == 0 ){
 			Is_in_MLC = 1;
 		}
 #ifdef DEBUG
 		if(Is_in_SLC && Is_in_MLC){
 			printf("MLC and SLC all have data,check operation_time\n");
+			assert(0);
 			if(SLC_opagemap[blkno_2K].map_age > MLC_opagemap[blkno_4K].map_age){
 				//must clean MLC state flag
 				Is_in_MLC = 0;
@@ -315,7 +353,7 @@ void read_from_mix_flash(unsigned int secno, int scount, int operation)
 int read_from_SLC(int blkno,int read_num)
 {
 	int cnt;
-	if(read_num > 1 && SLC_opagemap[(blkno+read_num-1)].free == 1 && SLC_opagemap[(blkno+read_num-1)].ppn == -1){
+	if(read_num > 1 && SLC_opagemap[(blkno+read_num-1)].free == 1){
 #ifdef DEBUG
 		printf("SLC not storgae lpn %d\n",blkno+read_num-1);
 #endif
@@ -443,24 +481,23 @@ void HBFTL_MLC_No_Hit_CMT(int blkno,int operation)
 			}
 			MLC_opagemap[min_ghost].map_status = MAP_INVALID;
 			
-			MIX_MAP_GHOST_NUM_ENTRIES --;
-			MIX_MAP_REAL_NUM_ENTRIES ++;
 			mix_find_real_min();
 			MLC_opagemap[real_min].map_status = MAP_GHOST;
 			pos = search_table(ghost_arr, MAP_GHOST_MAX_ENTRIES,min_ghost);
-			ASSERT(pos == -1);
+			ASSERT(pos != -1);
 			ghost_arr[pos] = -1;
 			ghost_arr[pos] = real_min;
 			pos = search_table(real_arr, MAP_REAL_MAX_ENTRIES,real_min);
 			real_arr[pos] = -1;
+			MIX_MAP_REAL_NUM_ENTRIES --;
 		}else{
 			// ghost-list not full
-			MIX_MAP_REAL_NUM_ENTRIES --;
 			mix_find_real_min();
 			MLC_opagemap[real_min].map_status = MAP_GHOST;
 			pos = search_table(real_arr,MAP_REAL_MAX_ENTRIES,real_min);
 			ASSERT(pos != -1);
 			real_arr[pos] = -1;
+			MIX_MAP_REAL_NUM_ENTRIES --;
 			pos = find_free_pos(ghost_arr,MAP_GHOST_MAX_ENTRIES);
 			ASSERT(pos !=-1);
 			ghost_arr[pos] = real_min;
@@ -491,7 +528,8 @@ void Write_2_SLC(unsigned int secno, int scount)
     int bcount_4K,blkno_2K,blkno_4K,cnt;
 	
 	blkno_4K = secno/M_SECT_NUM_PER_PAGE + MLC_page_num_for_2nd_map_table;
-	blkno_2K = secno/S_SECT_NUM_PER_PAGE;
+	//attention compute 
+	blkno_2K = (secno/M_SECT_NUM_PER_PAGE)*(M_SECT_NUM_PER_PAGE/S_SECT_NUM_PER_PAGE);
 	bcount_4K =  (secno + scount -1)/M_SECT_NUM_PER_PAGE - (secno)/M_SECT_NUM_PER_PAGE + 1;
 	//curr debug force 4K need to slove
 	cnt = bcount_4K;
@@ -518,10 +556,14 @@ void Write_2_SLC(unsigned int secno, int scount)
  *********************************/
 void Write_2_MLC(unsigned int secno,int scount)
 {    
+#ifdef DEBUG
+	int ppn,debug_ppn,debug_scn,debug_blk;
+#endif
 	int bcount_4K,blkno_2K,blkno_4K,cnt;
 	
 	blkno_4K = secno/M_SECT_NUM_PER_PAGE + MLC_page_num_for_2nd_map_table;
-	blkno_2K = secno/S_SECT_NUM_PER_PAGE;
+	//attention page align
+	blkno_2K = (secno/M_SECT_NUM_PER_PAGE)*(M_SECT_NUM_PER_PAGE/S_SECT_NUM_PER_PAGE);
 	bcount_4K =  (secno + scount -1)/M_SECT_NUM_PER_PAGE - (secno)/M_SECT_NUM_PER_PAGE + 1;
 	//curr debug force 4K need to slove
 	cnt = bcount_4K;
@@ -532,11 +574,26 @@ void Write_2_MLC(unsigned int secno,int scount)
 		Check_blkno_in_SLC((blkno_2K+1));
 		if(MLC_opagemap[blkno_4K].map_status == MAP_REAL || MLC_opagemap[blkno_4K].map_status == MAP_GHOST){
 			HBFTL_MLC_Hit_CMT(blkno_4K,0);
+//#ifdef DEBUG
+			//ASSERT(MIX_MAP_GHOST_NUM_ENTRIES == compute_ghost_arr_size());
+			//ASSERT(MIX_MAP_REAL_NUM_ENTRIES == compute_real_arr_size());
+//#endif
 		}else{
 			HBFTL_MLC_No_Hit_CMT(blkno_4K,0);
+//#ifdef DEBUG
+			//ASSERT(MIX_MAP_GHOST_NUM_ENTRIES == compute_ghost_arr_size());
+			//ASSERT(MIX_MAP_REAL_NUM_ENTRIES == compute_real_arr_size());
+//#endif	
 		}
 		//mapdir-flag 1 --> MLC data
 		send_flash_request(blkno_4K * M_SECT_NUM_PER_PAGE, M_SECT_NUM_PER_PAGE, 0 ,1);
+#ifdef DEBUG
+		ppn = MLC_opagemap[blkno_4K].ppn;
+		debug_blk = ppn >> 7;
+		debug_ppn = ppn % 128;
+		debug_scn = debug_ppn * 8;
+		ASSERT(MLC_nand_blk[debug_blk].sect[debug_scn].lsn == (blkno_4K * 8));
+#endif
 		MLC_opagemap[blkno_4K].update = 1;
 		blkno_2K += 2;
 		blkno_4K ++;
@@ -556,7 +613,7 @@ int Check_blkno_in_MLC(int blkno)
 	int flag = 0;
 	
 	int pos= -1;
-	if( MLC_opagemap[blkno].free == 0 && MLC_opagemap[blkno].ppn !=-1){
+	if( MLC_opagemap[blkno].free == 0){
 		flag = 1;
 		if(MLC_opagemap[blkno].map_status == MAP_REAL){
 			pos = search_table(real_arr, MAP_REAL_MAX_ENTRIES, blkno);
@@ -587,7 +644,7 @@ int Check_blkno_in_MLC(int blkno)
 int Check_blkno_in_SLC(int blkno)
 {
 	int flag = 0;
-	if(SLC_opagemap[blkno].free == 0 && SLC_opagemap[blkno].ppn != -1){
+	if(SLC_opagemap[blkno].free == 0 ){
 		flag = 1;
 		SLC_opm_invalid(blkno);
 	}

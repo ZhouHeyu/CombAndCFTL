@@ -132,16 +132,23 @@ int main (int argc, char **argv)
   memset(dm_table, -1, sizeof(int)*DM_MGR_SIZE);
 
   if(ftl_type != -1){
+	if(ftl_type < 5){
+	    initFlash();
+		reset_flash_stat();
+		nand_stat_reset();
+	}else if(ftl_type >=5 && ftl_type <=7){
+		initMixFlash();
+		reset_MLC_flash_stat();
+		reset_SLC_flash_stat();
+		mix_nand_stat_reset();		
+	}
 
-    initFlash();
-    reset_flash_stat();
-    nand_stat_reset();
   }
 
  // warmFlashsynth();
-  nand_stat_reset();
   warmFlash(argv[4]);
   nand_stat_reset();
+  mix_nand_stat_reset();
 
   disksim_run_simulation ();
 

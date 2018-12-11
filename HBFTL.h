@@ -14,7 +14,7 @@
 
 struct mix_opm_entry {
   _u32 free  : 1;
-  _u32 ppn   : 31;
+  int ppn   : 31;
   int  cache_status;
   int  cache_age;
   int  map_status;
@@ -33,8 +33,12 @@ int MLC_opagemap_num;
 struct mix_omap_dir * MLC_map_dir;
 int MLC_map_dir_num;
 
-#define  MLC_MAP_ENTRIES_PER_PAGE 1024
+int SLC_TOTAL_MAP_ENTRIES ;
+int MLC_TOTAL_MAP_ENTRIES ;
+
+#define MLC_MAP_ENTRIES_PER_PAGE 1024
 
 double HBFTL_Scheme(unsigned int secno,int scount,int operation);
-
+void Write_2_SLC(unsigned int secno, int scount);
+void Write_2_MLC(unsigned int secno,int scount);
 #endif

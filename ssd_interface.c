@@ -18,6 +18,8 @@
 #include "ssd_interface.h"
 #include "disksim_global.h"
 #include "dftl.h"
+#include "HBFTL.h"
+#include "CFTL.h"
 
 extern int merge_switch_num;
 extern int merge_partial_num;
@@ -151,7 +153,6 @@ double calculate_delay_flash()
 /***********************************************************************
   Initialize Flash Drive 
   ***********************************************************************/
-
 void initFlash()
 {
   blk_t total_blk_num;
@@ -174,7 +175,7 @@ void initFlash()
   ASSERT(total_extr_blk_num != 0);
 
   if (nand_init(total_blk_num, 3) < 0) {
-    EXIT(-4); 
+   assert(0);
   }
 
   switch(ftl_type){
@@ -212,9 +213,15 @@ void printWearout()
 
 void endFlash()
 {
-  nand_stat_print(outputfile);
-  ftl_op->end;
-  nand_end();
+  if(ftl_type <5){
+    nand_stat_print(outputfile);
+	ftl_op->end;
+	nand_end();
+  }else if(ftl_type >=5 && ftl_type <= 7){
+    mix_nand_stat_print(outputfile);
+	ftl_op->end;
+	mix_nand_end();
+  }
 }  
 
 /***********************************************************************
@@ -229,14 +236,12 @@ void send_flash_request(int start_blk_no, int block_cnt, int operation, int mapd
         if((start_blk_no + block_cnt) >= total_util_sect_num){
           printf("start_blk_no: %d, block_cnt: %d, total_util_sect_num: %d\n", 
               start_blk_no, block_cnt, total_util_sect_num);
-          exit(0);
+			assert(0);
         }
 
 	switch(operation){
-
 	//write
 	case 0:
-	
 		op_func = ftl_op->write;
 		while (block_cnt> 0) {
 			size = op_func(start_blk_no, block_cnt, mapdir_flag);
@@ -246,8 +251,6 @@ void send_flash_request(int start_blk_no, int block_cnt, int operation, int mapd
 		break;
 	//read
 	case 1:
-
-
 		op_func = ftl_op->read;
 		while (block_cnt> 0) {
 			size = op_func(start_blk_no, block_cnt, mapdir_flag);
@@ -348,7 +351,7 @@ int find_free_pos( int *arr, int size)
         }
     } 
     printf("shouldnt come here for find_free_pos()");
-    exit(1);
+    assert(0);
     return -1;
 }
 
@@ -382,11 +385,9 @@ double callFsim(unsigned int secno, int scount, int operation)
 	} else if(ftl_type == 4){
   		// FAST scheme
   		delay = FAST_Scheme(secno, scount, operation);
-  	} else if(ftl_type >= 4){
+  	} else if(ftl_type >= 5){
 		//delay = MixFTL_Scheme(secno,scount,operation);
-		//delay =IRRFTL_Scheme(secno,scount,operation);
-		//delay = SFTL_Scheme(secno,scount,operation);
-		exit(0);
+		delay = HBFTL_Scheme(secno,scount,operation);
 	}
   	return delay;
 }
@@ -689,13 +690,14 @@ void initMixFlash()
   total_SLC_util_sect_num =  flash_numblocks * SLC_ratio;
   total_SLC_extra_sect_num = flash_extrblocks * SLC_ratio;
     
-  total_SLC_sect_num=total_SLC_util_sect_num+total_SLC_extra_sect_num;
-  total_MLC_sect_num=total_MLC_util_sect_num+total_MLC_extra_sect_num; 
-
+  total_SLC_sect_num = total_SLC_util_sect_num + total_SLC_extra_sect_num;
+  total_MLC_sect_num = total_MLC_util_sect_num + total_MLC_extra_sect_num; 
+  
+  total_util_sect_num = total_SLC_util_sect_num + total_MLC_util_sect_num;
  // total number of blocks 
   total_SLC_blk_num  = total_SLC_sect_num / S_SECT_NUM_PER_BLK;     
   total_MLC_blk_num  = total_MLC_sect_num / M_SECT_NUM_PER_BLK;
-  total_blk_num =total_SLC_blk_num + total_MLC_blk_num; 
+  //total_blk_num =total_SLC_blk_num + total_MLC_blk_num; 
 
   total_SLC_util_blk_num = total_SLC_util_sect_num / S_SECT_NUM_PER_BLK;    
   total_MLC_util_blk_num = total_MLC_util_sect_num / M_SECT_NUM_PER_BLK;
@@ -703,16 +705,19 @@ void initMixFlash()
   total_MLC_extr_blk_num = total_MLC_extra_sect_num / M_SECT_NUM_PER_BLK;
   
   SLC_USER_BLK_NUM = total_SLC_util_blk_num ;
-  total_util_blk_num = total_SLC_util_blk_num + total_MLC_util_blk_num;
+  //blk size not equal
+  //total_util_blk_num = total_SLC_util_blk_num + total_MLC_util_blk_num;
 
-  ASSERT(total_extr_blk_num != 0);
+  //ASSERT(total_extr_blk_num != 0);
+  ASSERT(total_SLC_extr_blk_num !=0);
+  ASSERT(total_MLC_extr_blk_num !=0);
 
   if (mix_nand_init(total_SLC_blk_num,total_MLC_blk_num, MIN_FREE_BLK_NUM) < 0) {
 	exit(-4);
   }
   //select mix-ftl 
   switch(ftl_type){
-	//case 6:  ftl_op = CFTL_setup(); break;
+	case 6:  ftl_op = CFTL_setup(); break;
 	//case 7:  ftl_op = Comb_setup();break;
 	default:break;
 	}
