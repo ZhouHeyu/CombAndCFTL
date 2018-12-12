@@ -49,7 +49,7 @@ void CFTL_SLC_data_move(int blk)
      int blkno,bcount;
      _u32 victim_blkno;
      _u32 copy_lsn[S_SECT_NUM_PER_PAGE];
-
+	 int last_MLC_req = -1;
      for(i=0;i<S_PAGE_NUM_PER_BLK;i++){
          valid_flag = SLC_nand_oob_read(S_SECTOR(blk,i*S_SECT_NUM_PER_PAGE));
          if(valid_flag == 1){
@@ -62,8 +62,11 @@ void CFTL_SLC_data_move(int blk)
             blkno = (S_BLK_PAGE_NO_SECT(copy_lsn[0]) * S_SECT_NUM_PER_PAGE )/ M_SECT_NUM_PER_PAGE;
             blkno *= M_SECT_NUM_PER_PAGE;
             bcount = M_SECT_NUM_PER_PAGE;
-            Write_2_MLC(blkno,bcount);
-            SLC_to_MLC_counts+=1;
+            if(last_MLC_req != blkno){
+				Write_2_MLC(blkno,bcount);
+				SLC_to_MLC_counts+=1;
+			}
+			last_MLC_req = blkno;
          }
      }
      victim_blkno=blk; 
@@ -228,9 +231,6 @@ size_t CFTL_MLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag)
     lsns[i] = s_lsn + i;
   }
 
-  //if(mapdir_flag == 2){
-    //map_pg_read++;
-  //}
   size = MLC_nand_page_read(s_psn, lsns, 0);
 
   ASSERT(size == M_SECT_NUM_PER_PAGE);
@@ -239,6 +239,7 @@ size_t CFTL_MLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag)
 }
 
 /***************************MIX_SSD_GET_FREE_BLK***********************************************/
+//this function don't called
 int CFTL_SLC_opm_gc_get_free_blk(int small, int mapdir_flag)
 {
   if (free_SLC_page_no[small] >= S_SECT_NUM_PER_BLK) {
