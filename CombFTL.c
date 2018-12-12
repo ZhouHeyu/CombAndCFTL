@@ -148,7 +148,7 @@ size_t Comb_MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)
   if (free_MLC_page_no[small] >= M_SECT_NUM_PER_BLK) {
     if ((free_MLC_blk_no[small] = nand_get_MLC_free_blk(0)) == -1) {
       int j = 0;
-      while (free_MLC_blk_num < 3 ){
+      while (free_MLC_blk_num < MIN_FREE_BLK_NUM ){
         j += Comb_MLC_opm_gc_run(small, mapdir_flag);
       }
       Comb_MLC_opm_gc_get_free_blk(small, mapdir_flag);
@@ -372,11 +372,11 @@ size_t Comb_SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)
     memset (lsns, 0xFF, sizeof (lsns));
     ASSERT(mapdir_flag == 0);
     small = 1;
-    //get free write blk region 
+    //get free write blk region (SLC_haed is curr write blk num)
 	if(free_SLC_page_no[small] >= S_SECT_NUM_PER_BLK){
+		Comb_SLC_Hot_Circular_Que();
 		free_SLC_blk_no[small] = nand_get_SLC_free_blk(0);
 		free_SLC_page_no[small] = 0;
-		Comb_SLC_Hot_Circular_Que();
 	}
     s_psn = S_SECTOR(free_SLC_blk_no[small], free_SLC_page_no[small]);
    
@@ -455,7 +455,7 @@ void Comb_SLC_data_move(int blk)
     double delay3;
     _u32 victim_blkno;
     _u32 copy_lsn[S_SECT_NUM_PER_PAGE];
-
+	int last_MLC_lpn = -1;
     for(i=0; i < S_PAGE_NUM_PER_BLK; i++){
         valid_flag=SLC_nand_oob_read(S_SECTOR(blk, i*S_SECT_NUM_PER_PAGE));
         if(valid_flag == 1){
@@ -463,19 +463,25 @@ void Comb_SLC_data_move(int blk)
             ASSERT(valid_sect_num == 4);
             if(SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].count < 2){
 				//this need to check free_cold_page_no
-				ASSERT(free_cold_page_no <= S_SECT_NUM_PER_PAGE);
+				ASSERT(free_cold_page_no <= S_SECT_NUM_PER_BLK);
 				SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].ppn = S_BLK_PAGE_NO_SECT(S_SECTOR(free_cold_blk_no,free_cold_page_no));
 				SLC_nand_page_write(S_SECTOR(free_cold_blk_no, free_cold_page_no) &(~S_OFF_MASK_SECT), copy_lsn, 1, 1);
 				free_cold_page_no += S_SECT_NUM_PER_PAGE;
 				SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].count += 1;
+				SLC_to_SLC_counts ++;
 			}else{
 				SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].ppn = -1;
 				SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].count = 0;
+				SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].free = 1;
     		    blkno = (S_BLK_PAGE_NO_SECT(copy_lsn[0]) * S_SECT_NUM_PER_PAGE)/M_SECT_NUM_PER_PAGE;
 			    blkno *= M_SECT_NUM_PER_PAGE;
 		        bcount = M_SECT_NUM_PER_PAGE;
-		        //direct to called outer function
-		        Write_2_MLC(blkno, bcount);
+		        //direct to called outer function(this maybe some problem)
+		        if(last_MLC_lpn != blkno){
+					Write_2_MLC(blkno, bcount);
+					SLC_to_MLC_counts ++;
+				}
+				last_MLC_lpn = blkno;
 	        }
         }
     }
@@ -494,23 +500,23 @@ void Comb_SLC_data_move(int blk)
 void Comb_SLC_Hot_Circular_Que()
 {
     int SLC_blk_index;
-    if(SLC_head > SLC_tail){
+    if(SLC_head >= SLC_tail){// equal only happen in init
         if(SLC_head - SLC_nand_blk <= SLC_HOT_ARR_LEN - HOT_FREE_MIN){
             SLC_head++;
         }
         else{
             SLC_blk_index = SLC_tail - SLC_nand_blk;
             SLC_head++;
-            Comb_SLC_data_move(SLC_blk_index);
+            Comb_SLC_Hot2Cold(SLC_blk_index);
             SLC_tail++;
         }
         if(SLC_head - SLC_nand_blk == SLC_HOT_ARR_LEN)
             SLC_head = &SLC_nand_blk[0];
     }
-    else{  // head <= tail
+    else{  // head < tail
         SLC_blk_index = SLC_tail - SLC_nand_blk;
         SLC_head++;
-        Comb_SLC_data_move(SLC_blk_index);
+        Comb_SLC_Hot2Cold(SLC_blk_index);
         SLC_tail++;
         if(SLC_tail - SLC_nand_blk == SLC_HOT_ARR_LEN)
             SLC_tail = &SLC_nand_blk[0];
@@ -536,9 +542,7 @@ void Comb_SLC_Hot2Cold(int blk)
     for(i=0;i<S_PAGE_NUM_PER_BLK;i++){
 		while(free_cold_page_no >= S_SECT_NUM_PER_BLK)//if (free_cold_page_no >= S_SECT_NUM_PER_BLK) 
         {
-            free_cold_blk_no = SLC_nand_get_cold_free_blk(0);
-            free_cold_page_no = 0;
-            Comb_SLC_Cold_Circular_Que();
+			Comb_SLC_Cold_Circular_Que();            
         }
         valid_flag = SLC_nand_oob_read(S_SECTOR(blk,i*S_SECT_NUM_PER_PAGE));
         if(valid_flag == 1){
@@ -565,22 +569,28 @@ void Comb_SLC_Hot2Cold(int blk)
 void Comb_SLC_Cold_Circular_Que()
 {
     int SLC_blk_index;
-    if(SLC_cold_head > SLC_cold_tail){
+    if(SLC_cold_head >= SLC_cold_tail){// equal only happen in cold init write
         if(SLC_cold_head - SLC_nand_blk <= SLC_ARR_LEN - COLD_FREE_MIN){
             SLC_cold_head++;
-        }
-        else{
+            free_cold_blk_no = SLC_nand_get_cold_free_blk(0);
+            free_cold_page_no = 0;
+        }else{
             SLC_blk_index = SLC_cold_tail - SLC_nand_blk;
             SLC_cold_head++;
+            if(SLC_cold_head - SLC_nand_blk == SLC_ARR_LEN){
+				SLC_cold_head = &SLC_nand_blk[SLC_HOT_ARR_LEN];
+			}
+            free_cold_blk_no = SLC_nand_get_cold_free_blk(0);
+            free_cold_page_no = 0;
             Comb_SLC_data_move(SLC_blk_index);
             SLC_cold_tail++;
         }
-        if(SLC_cold_head - SLC_nand_blk == SLC_ARR_LEN)
-            SLC_cold_head = &SLC_nand_blk[SLC_HOT_ARR_LEN];
     }
-    else{  // head <= tail
+    else{  // head <  tail
         SLC_blk_index = SLC_cold_tail - SLC_nand_blk;
         SLC_cold_head++;
+        free_cold_blk_no = SLC_nand_get_cold_free_blk(0);
+        free_cold_page_no = 0;
         Comb_SLC_data_move(SLC_blk_index);
         SLC_cold_tail++;
         if(SLC_cold_tail - SLC_nand_blk == SLC_ARR_LEN)

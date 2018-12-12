@@ -1040,11 +1040,11 @@ _u32 nand_get_SLC_free_blk (int isGC)
   MIN_ERASE = 9999999;
   //in case that there is no avaible free block -> GC should be called !
   if ((isGC == 0) && (min_fb_num >= free_SLC_blk_num)) {
-    //printf("min_fb_num: %d\n", min_fb_num);
-    return -1;
+    printf("min_fb_num: %d\n", min_fb_num);
+    assert(0);
   }
-  
-   blk_no = SLC_head-SLC_nand_blk;
+
+   blk_no = SLC_head - SLC_nand_blk;
    if(SLC_nand_blk[blk_no].state.free==1){
       flag=1;
    } 
@@ -1205,7 +1205,7 @@ void mix_nand_stat_print(FILE *outFP)
   fprintf(outFP, " MLC_Page write (#): %8u   ", MLC_stat_write_num);
   fprintf(outFP, " MLC_Block erase (#): %8u\n", MLC_stat_erase_num);
 
-  fprintf(outFP, " MLC__GC page read (#): %8u   ", MLC_stat_gc_read_num);
+  fprintf(outFP, " MLC_GC page read (#): %8u   ", MLC_stat_gc_read_num);
   fprintf(outFP, " MLC_GC page write (#): %8u\n", MLC_stat_gc_write_num);
   fprintf(outFP, "------------------------------------------------------------\n");
   fprintf(outFP, "Real CallFsim write sect num is %d\tconvert to Volume is %lfGB\n", real_data_write_sect_num,real_data_write_sect_num*1.0/(1024*1024*2));
@@ -1220,6 +1220,7 @@ void mix_nand_stat_print(FILE *outFP)
                                                                               map_blk_gc_trigger_map_write_num *2.0/((1024*1024)),
                                                                               map_blk_gc_trigger_map_write_num*1.0/translate_map_write_num);
   fprintf(outFP, " SLC_to_MLC_counts (#): %8u\tconvert to Volume is %lf GB\n", SLC_to_MLC_counts, (SLC_to_MLC_counts * 4.0)/(1024 * 1024));
+  fprintf(outFP, " SLC_to_SLC_counts (#): %8u\tconvert to Volume is %lf GB\n", SLC_to_SLC_counts, (SLC_to_SLC_counts * 4.0)/(1024 * 1024));
   fprintf(outFP,"--------------------------------------------------------------\n");
   
   fprintf(outFP,"**************SLC ECN VALUE STATIC*****************************\n");

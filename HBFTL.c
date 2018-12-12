@@ -197,7 +197,7 @@ void HBFTL_init()
 	MIX_MAP_REAL_NUM_ENTRIES = 0;
 	MIX_MAP_GHOST_NUM_ENTRIES = 0;
 	
-	Wear_Th = 8;
+	Wear_Th = 12;
 	operation_time = 0;
     init_flag = 1;
 }
@@ -230,14 +230,13 @@ static void Wear_Th_update(int scount)
 		memset(CFTL_Window, 0, sizeof(int) * CFTL_CYCLE_COUNTS);
 	  }
 	  
-   }else if(ftl_type == 6){
+   }else if(ftl_type == 7){
 	 // CombFTL Th update
 	 Curr_Count += scount;
 	 if(Curr_Count >= COMB_CYCLE_COUNTS){
 		Curr_Count = 0;
 		Temp_Comb_Tau = ((SLC_to_MLC_counts-last_SLC_to_MLC_Counts) * 1.0 * M_SECT_NUM_PER_PAGE)/COMB_CYCLE_COUNTS;
 		last_SLC_to_MLC_Counts = SLC_to_MLC_counts;
-        // 要改
 		if(Temp_Comb_Tau >= (Comb_Tau + Comb_Tau_std)){
 			Wear_Th -= 2;
 			Wear_Th = (Wear_Th < MIN_TH) ? MIN_TH : Wear_Th;
@@ -257,6 +256,13 @@ double HBFTL_Scheme(unsigned int secno,int scount,int operation)
 {
 	double delay = 0.0;
 	int page_align = 0;
+	//handle for warm done
+	if(warm_flag == 0){
+		Curr_Count = 0;
+		last_SLC_to_MLC_Counts = 0;
+		memset(CFTL_Window , 0 , sizeof(int) * CFTL_CYCLE_COUNTS);
+		Wear_Th = 12;
+	}
 	if(init_flag == 0){
 		HBFTL_init();
 	}
@@ -610,17 +616,31 @@ void Write_2_MLC(unsigned int secno,int scount)
  * *********************************************/
 int Check_blkno_in_MLC(int blkno)
 {
+#ifdef DEBUG
+	int debug_ppn,debug_scn,debug_blk;
+#endif
 	int flag = 0;
-	
 	int pos= -1;
 	if( MLC_opagemap[blkno].free == 0){
 		flag = 1;
 		if(MLC_opagemap[blkno].map_status == MAP_REAL){
+#ifdef DEBUG
+			debug_ppn = MLC_opagemap[blkno].ppn;
+			debug_blk = debug_ppn >> 7;
+			debug_scn = (debug_ppn % 128)*8;
+			ASSERT(MLC_nand_blk[debug_blk].sect[debug_scn].lsn == (blkno*8));
+#endif
 			pos = search_table(real_arr, MAP_REAL_MAX_ENTRIES, blkno);
 			ASSERT(pos !=-1 );
 			real_arr[pos] = -1;
 			MIX_MAP_REAL_NUM_ENTRIES -- ;		
 		}else if(MLC_opagemap[blkno].map_status == MAP_GHOST){
+#ifdef DEBUG
+			debug_ppn = MLC_opagemap[blkno].ppn;
+			debug_blk = debug_ppn >> 7;
+			debug_scn = (debug_ppn % 128)*8;
+			ASSERT(MLC_nand_blk[debug_blk].sect[debug_scn].lsn == (blkno*8));
+#endif
 			pos = search_table(ghost_arr, MAP_GHOST_MAX_ENTRIES,blkno);
 			ASSERT(pos !=-1 );
 			ghost_arr[pos] = -1;
@@ -677,6 +697,7 @@ static int MLC_opm_invalid(int lpn)
   MLC_opagemap[lpn].map_age = 0;
   MLC_opagemap[lpn].update = 0;
   MLC_opagemap[lpn].free = 1;
+  MLC_opagemap[lpn].count = 0;
   return M_SECT_NUM_PER_PAGE;
 }
 

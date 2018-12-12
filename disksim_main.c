@@ -58,7 +58,7 @@
 #include "disksim_global.h"
 //flshsim
 #include "ssd_interface.h"
-
+extern int warm_flag;
 void warmFlashsynth(){
 
   memset(dm_table, -1, sizeof(int) * DM_MGR_SIZE);
@@ -144,9 +144,10 @@ int main (int argc, char **argv)
 	}
 
   }
-
+  warm_flag = 1;
  // warmFlashsynth();
   warmFlash(argv[4]);
+  warm_flag = 0;
   nand_stat_reset();
   mix_nand_stat_reset();
 

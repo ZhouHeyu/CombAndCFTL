@@ -141,7 +141,7 @@ extern int total_extra_sect_num;
 int global_total_blk_num;
 
 int warm_done; 
-
+int warm_flag;
 int total_er_cnt;
 int flag_er_cnt;
 int block_er_flag[20000];

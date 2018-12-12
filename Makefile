@@ -45,7 +45,7 @@ CFLAGS = $(DISKMODEL_CFLAGS) $(LIBPARAM_CFLAGS) $(LIBDDBG_CFLAGS) $(DEBUG_OFLAGS
 FBSYSSIM_OFLAGS = -O6 -fomit-frame-pointer -fexpensive-optimizations -fschedule-insns2
 
 #CC = cc
-CC = gcc -Wall -Wno-unused -MD
+CC = gcc -Wall -DDEBUG -Wno-unused -MD
 # because purify spits out warnings on stdout...
 CC-DEP = gcc $(LIBPARAM_CFLAGS) $(DISKMODEL_CFLAGS)
 
@@ -85,8 +85,8 @@ DISKSIM_SRC = disksim.c disksim_intr.c disksim_pfsim.c \
 	disksim_loadparams.c \
 	raw_layout.c flash.c \
         pagemap.c \
-        ssd_interface.c \
-        dftl.c \
+        ssd_interface.c HBFTL.c\
+        dftl.c CFTL.c CombFTL.c\
         fast.c 
 
 DISKSIM_OBJ = $(DISKSIM_SRC:.c=.o)  

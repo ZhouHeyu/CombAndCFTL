@@ -20,6 +20,7 @@
 #include "dftl.h"
 #include "HBFTL.h"
 #include "CFTL.h"
+#include "CombFTL.h"
 
 extern int merge_switch_num;
 extern int merge_partial_num;
@@ -718,7 +719,7 @@ void initMixFlash()
   //select mix-ftl 
   switch(ftl_type){
 	case 6:  ftl_op = CFTL_setup(); break;
-	//case 7:  ftl_op = Comb_setup();break;
+	case 7:  ftl_op = Comb_setup();break;
 	default:break;
 	}
   //SLC compute MLC ratio
