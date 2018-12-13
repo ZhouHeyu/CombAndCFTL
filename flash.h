@@ -183,7 +183,7 @@ int SLC_USER_BLK_NUM;
  * Author :zhoujie
  * init-in ssd_interface.c(initMixFlash)
  * ****************************/
-#define SLC_ratio 0.4
+#define SLC_ratio 0.25
 int total_SLC_blk_num ;
 int total_MLC_blk_num ;
 int total_blk_num;
