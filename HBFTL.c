@@ -28,8 +28,8 @@ static int Wear_Th;
 #define MAX_TH 64
 #define MIN_TH 4
 static int last_SLC_to_MLC_Counts;
-static double Comb_Tau = 0.1;
-static double Comb_Tau_std = 0.05;
+static double Comb_Tau = 0.05;
+static double Comb_Tau_std = 0.01;
 
 #define CFTL_CYCLE_COUNTS 1000
 #define COMB_CYCLE_COUNTS (nand_SLC_blk_num * S_SECT_NUM_PER_BLK)
