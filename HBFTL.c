@@ -6,6 +6,7 @@
  * **************************************************/
 #include "HBFTL.h"
 #include "ssd_interface.h"
+#include "TwoMeans.h"
 #include "flash.h"
 
 #define MAP_INVALID 1 
@@ -216,19 +217,15 @@ static void Wear_Th_update(int scount)
 		debug_count = 1 ;
 	}
 #endif
-   if(ftl_type == 5){
+   if(ftl_type == 6){
 	  // CFTL Th update
-	  Curr_Count ++;
-	  CFTL_Window[Curr_Count] = scount;
 	  if(Curr_Count == CFTL_CYCLE_COUNTS){
-		CFTL_Sum = 0;
-		for(i = 0 ;i < CFTL_CYCLE_COUNTS;i++){
-			CFTL_Sum += CFTL_Window[i];
-		}  
-		Wear_Th = (CFTL_Sum * 1.0)/ CFTL_CYCLE_COUNTS + 3;
+		Wear_Th = TwoMeans(CFTL_Window, CFTL_CYCLE_COUNTS);
 		Curr_Count = 0; 
 		memset(CFTL_Window, 0, sizeof(int) * CFTL_CYCLE_COUNTS);
 	  }
+	  CFTL_Window[Curr_Count] = scount;
+	  Curr_Count ++;
 	  
    }else if(ftl_type == 7){
 	 // CombFTL Th update
@@ -262,6 +259,7 @@ double HBFTL_Scheme(unsigned int secno,int scount,int operation)
 		last_SLC_to_MLC_Counts = 0;
 		memset(CFTL_Window , 0 , sizeof(int) * CFTL_CYCLE_COUNTS);
 		Wear_Th = 12;
+		warm_flag = -1;
 	}
 	if(init_flag == 0){
 		HBFTL_init();
@@ -272,8 +270,8 @@ double HBFTL_Scheme(unsigned int secno,int scount,int operation)
 		//based on 4K(this problem need to slove)
 		page_align = (secno + scount -1)/M_SECT_NUM_PER_PAGE - (secno)/M_SECT_NUM_PER_PAGE + 1;
 		page_align_padding_sect_num +=(page_align * M_SECT_NUM_PER_PAGE -scount);
-		
 		Wear_Th_update(scount);
+		
 		if(scount >= Wear_Th){
 			// write to MLC
 			Write_2_MLC(secno, scount);
