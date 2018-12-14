@@ -305,9 +305,6 @@ void read_from_mix_flash(unsigned int secno, int scount, int operation)
 	blkno_2K = (secno/M_SECT_NUM_PER_PAGE)*(M_SECT_NUM_PER_PAGE/S_SECT_NUM_PER_PAGE);
 	bcount_4K =  (secno + scount -1)/M_SECT_NUM_PER_PAGE - (secno)/M_SECT_NUM_PER_PAGE + 1;
 	cnt = bcount_4K;
-#ifdef DEBUG
-
-#endif
 	while(cnt > 0){
 		cnt--;
 		operation_time ++;
@@ -583,26 +580,26 @@ void Write_2_MLC(unsigned int secno,int scount)
 		Check_blkno_in_SLC((blkno_2K+1));
 		if(MLC_opagemap[blkno_4K].map_status == MAP_REAL || MLC_opagemap[blkno_4K].map_status == MAP_GHOST){
 			HBFTL_MLC_Hit_CMT(blkno_4K,0);
-#ifdef DEBUG
-			ASSERT(MIX_MAP_GHOST_NUM_ENTRIES == compute_ghost_arr_size());
-			ASSERT(MIX_MAP_REAL_NUM_ENTRIES == compute_real_arr_size());
-#endif
+//~ #ifdef DEBUG
+			//~ ASSERT(MIX_MAP_GHOST_NUM_ENTRIES == compute_ghost_arr_size());
+			//~ ASSERT(MIX_MAP_REAL_NUM_ENTRIES == compute_real_arr_size());
+//~ #endif
 		}else{
 			HBFTL_MLC_No_Hit_CMT(blkno_4K,0);
-#ifdef DEBUG
-			ASSERT(MIX_MAP_GHOST_NUM_ENTRIES == compute_ghost_arr_size());
-			ASSERT(MIX_MAP_REAL_NUM_ENTRIES == compute_real_arr_size());
-#endif	
+//~ #ifdef DEBUG
+			//~ ASSERT(MIX_MAP_GHOST_NUM_ENTRIES == compute_ghost_arr_size());
+			//~ ASSERT(MIX_MAP_REAL_NUM_ENTRIES == compute_real_arr_size());
+//~ #endif	
 		}
 		//mapdir-flag 1 --> MLC data
 		send_flash_request(blkno_4K * M_SECT_NUM_PER_PAGE, M_SECT_NUM_PER_PAGE, 0 ,1);
-#ifdef DEBUG
-		ppn = MLC_opagemap[blkno_4K].ppn;
-		debug_blk = ppn >> 7;
-		debug_ppn = ppn % 128;
-		debug_scn = debug_ppn * 8;
-		ASSERT(MLC_nand_blk[debug_blk].sect[debug_scn].lsn == (blkno_4K * 8));
-#endif
+//~ #ifdef DEBUG
+		//~ ppn = MLC_opagemap[blkno_4K].ppn;
+		//~ debug_blk = ppn >> 7;
+		//~ debug_ppn = ppn % 128;
+		//~ debug_scn = debug_ppn * 8;
+		//~ ASSERT(MLC_nand_blk[debug_blk].sect[debug_scn].lsn == (blkno_4K * 8));
+//~ #endif
 		MLC_opagemap[blkno_4K].update = 1;
 		blkno_2K += 2;
 		blkno_4K ++;
@@ -627,23 +624,23 @@ int Check_blkno_in_MLC(int blkno)
 	if( MLC_opagemap[blkno].free == 0){
 		flag = 1;
 		if(MLC_opagemap[blkno].map_status == MAP_REAL){
-#ifdef DEBUG
-			debug_ppn = MLC_opagemap[blkno].ppn;
-			debug_blk = debug_ppn >> 7;
-			debug_scn = (debug_ppn % 128)*8;
-			ASSERT(MLC_nand_blk[debug_blk].sect[debug_scn].lsn == (blkno*8));
-#endif
+//~ #ifdef DEBUG
+			//~ debug_ppn = MLC_opagemap[blkno].ppn;
+			//~ debug_blk = debug_ppn >> 7;
+			//~ debug_scn = (debug_ppn % 128)*8;
+			//~ ASSERT(MLC_nand_blk[debug_blk].sect[debug_scn].lsn == (blkno*8));
+//~ #endif
 			pos = search_table(real_arr, MAP_REAL_MAX_ENTRIES, blkno);
 			ASSERT(pos !=-1 );
 			real_arr[pos] = -1;
 			MIX_MAP_REAL_NUM_ENTRIES -- ;		
 		}else if(MLC_opagemap[blkno].map_status == MAP_GHOST){
-#ifdef DEBUG
-			debug_ppn = MLC_opagemap[blkno].ppn;
-			debug_blk = debug_ppn >> 7;
-			debug_scn = (debug_ppn % 128)*8;
-			ASSERT(MLC_nand_blk[debug_blk].sect[debug_scn].lsn == (blkno*8));
-#endif
+//~ #ifdef DEBUG
+			//~ debug_ppn = MLC_opagemap[blkno].ppn;
+			//~ debug_blk = debug_ppn >> 7;
+			//~ debug_scn = (debug_ppn % 128)*8;
+			//~ ASSERT(MLC_nand_blk[debug_blk].sect[debug_scn].lsn == (blkno*8));
+//~ #endif
 			pos = search_table(ghost_arr, MAP_GHOST_MAX_ENTRIES,blkno);
 			ASSERT(pos !=-1 );
 			ghost_arr[pos] = -1;
