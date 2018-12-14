@@ -1368,6 +1368,7 @@ void mix_nand_stat_print(FILE *outFP)
   fprintf(outFP, "MLC called Wear Level num is %d\n",MLC_called_wear_num);
   fprintf(outFP,"MLC all blk num is %d\n",nand_MLC_blk_num);
   fprintf(outFP,"MLC ECN ave %lf\t MLC ECN std %lf\n",MLC_global_nand_blk_wear_ave,MLC_global_nand_blk_wear_std);
+  Select_Wear_Level_Threshold(Wear_Threshold_Type);
   switch(Wear_Threshold_Type){
 	case STATIC_THRESHOLD:
 		fprintf(outFP,"Static Th Wear-th is %d\n",MLC_wear_level_threshold);
