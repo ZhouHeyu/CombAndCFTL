@@ -1364,7 +1364,23 @@ void mix_nand_stat_print(FILE *outFP)
                                                                               map_blk_gc_trigger_map_write_num*1.0/translate_map_write_num);
   fprintf(outFP, "SLC_to_MLC_counts (#): %8u\tconvert to Volume is %lf GB\n", SLC_to_MLC_counts, (SLC_to_MLC_counts * 4.0)/(1024 * 1024));
   fprintf(outFP, "SLC_to_SLC_counts (#): %8u\tconvert to Volume is %lf GB\n", SLC_to_SLC_counts, (SLC_to_SLC_counts * 4.0)/(1024 * 1024));
+  fprintf(outFP,"----------------------MLC---Wear---Level-----Alogrithm----------\n");
   fprintf(outFP, "MLC called Wear Level num is %d\n",MLC_called_wear_num);
+  fprintf(outFP,"MLC all blk num is %d\n",nand_MLC_blk_num);
+  fprintf(outFP,"MLC ECN ave %lf\t MLC ECN std %lf\n",MLC_global_nand_blk_wear_ave,MLC_global_nand_blk_wear_std);
+  switch(Wear_Threshold_Type){
+	case STATIC_THRESHOLD:
+		fprintf(outFP,"Static Th Wear-th is %d\n",MLC_wear_level_threshold);
+		break;
+	case DYNAMIC_THRESHOLD:
+		fprintf(outFP,"Dynamic Th Wear-th wear-beta is %lf\n",dynamic_wear_beta);
+		break;
+	case AVE_ADD_N_VAR :
+		fprintf(outFP,"AVE_ADD_N_VAR Th Wear-th N is %d \n",N_wear_var);
+		break;
+	default :
+		break;
+  }
   fprintf(outFP,"--------------------------------------------------------------\n");
   
   fprintf(outFP,"**************SLC ECN VALUE STATIC*****************************\n");
