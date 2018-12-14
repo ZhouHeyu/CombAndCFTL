@@ -321,12 +321,14 @@ void read_from_mix_flash(unsigned int secno, int scount, int operation)
 #ifdef DEBUG
 		if(Is_in_SLC && Is_in_MLC){
 			printf("MLC and SLC all have data,check operation_time\n");
-			assert(0);
+			//~ assert(0);
 			if(SLC_opagemap[blkno_2K].map_age > MLC_opagemap[blkno_4K].map_age){
 				//must clean MLC state flag
+				MLC_opm_invalid(blkno_4K);
 				Is_in_MLC = 0;
 			}else{
 				// must clean SLC state flag
+				SLC_opm_invalid(blkno_2K);
 				Is_in_SLC = 0;
 			}
 		}
@@ -567,8 +569,8 @@ void Write_2_MLC(unsigned int secno,int scount)
 	
 	blkno_4K = secno/M_SECT_NUM_PER_PAGE + MLC_page_num_for_2nd_map_table;
 	//attention page align
-	blkno_2K = (secno/M_SECT_NUM_PER_PAGE)*(M_SECT_NUM_PER_PAGE/S_SECT_NUM_PER_PAGE);
-	bcount_4K =  (secno + scount -1)/M_SECT_NUM_PER_PAGE - (secno)/M_SECT_NUM_PER_PAGE + 1;
+	blkno_2K = (secno/M_SECT_NUM_PER_PAGE) * (M_SECT_NUM_PER_PAGE/S_SECT_NUM_PER_PAGE);
+	bcount_4K =  (secno + scount -1) / M_SECT_NUM_PER_PAGE - (secno)/M_SECT_NUM_PER_PAGE + 1;
 	//curr debug force 4K need to slove
 	cnt = bcount_4K;
 	while(cnt >0){
@@ -578,16 +580,16 @@ void Write_2_MLC(unsigned int secno,int scount)
 		Check_blkno_in_SLC((blkno_2K+1));
 		if(MLC_opagemap[blkno_4K].map_status == MAP_REAL || MLC_opagemap[blkno_4K].map_status == MAP_GHOST){
 			HBFTL_MLC_Hit_CMT(blkno_4K,0);
-//#ifdef DEBUG
-			//ASSERT(MIX_MAP_GHOST_NUM_ENTRIES == compute_ghost_arr_size());
-			//ASSERT(MIX_MAP_REAL_NUM_ENTRIES == compute_real_arr_size());
-//#endif
+#ifdef DEBUG
+			ASSERT(MIX_MAP_GHOST_NUM_ENTRIES == compute_ghost_arr_size());
+			ASSERT(MIX_MAP_REAL_NUM_ENTRIES == compute_real_arr_size());
+#endif
 		}else{
 			HBFTL_MLC_No_Hit_CMT(blkno_4K,0);
-//#ifdef DEBUG
-			//ASSERT(MIX_MAP_GHOST_NUM_ENTRIES == compute_ghost_arr_size());
-			//ASSERT(MIX_MAP_REAL_NUM_ENTRIES == compute_real_arr_size());
-//#endif	
+#ifdef DEBUG
+			ASSERT(MIX_MAP_GHOST_NUM_ENTRIES == compute_ghost_arr_size());
+			ASSERT(MIX_MAP_REAL_NUM_ENTRIES == compute_real_arr_size());
+#endif	
 		}
 		//mapdir-flag 1 --> MLC data
 		send_flash_request(blkno_4K * M_SECT_NUM_PER_PAGE, M_SECT_NUM_PER_PAGE, 0 ,1);
