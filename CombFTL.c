@@ -44,6 +44,7 @@ size_t Comb_MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag);
 _u32 Comb_MLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag);
 int Comb_MLC_opm_gc_get_free_blk(int small, int mapdir_flag);
 int Comb_MLC_opm_gc_run(int small, int mapdir_flag);
+void Comb_MLC_opm_wear_level(int target_blk_no);
 //SLC function
 size_t Comb_SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag);
 size_t Comb_SLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag);
@@ -335,6 +336,27 @@ int Comb_MLC_opm_gc_run(int small, int mapdir_flag)
   }
 
   MLC_nand_erase(victim_blk_no);
+  //called wear - level function
+   Select_Wear_Level_Threshold(Wear_Threshold_Type);
+   if(MLC_nand_blk[victim_blk_no].state.ec > (int)(MLC_global_nand_blk_wear_ave + MLC_wear_level_threshold)){
+		CFTL_MLC_opm_wear_level(victim_blk_no);
+		MLC_called_wear_num ++;
+#ifdef DEBUG
+		switch(Wear_Threshold_Type){
+				case STATIC_THRESHOLD: 
+					printf("THRESHOLD TYPE is static threshold\n");
+					break;
+				case DYNAMIC_THRESHOLD:
+					printf("THRESHOLD TYPE is dynamic threshold\n");
+					break;
+				case  AVE_ADD_N_VAR:
+					printf("THRESHOLD TYPE is ave add %d * var\n",N_wear_var);
+					break;
+				default : assert(0);break;
+		}
+		printf("MLC called opm wear level %d\n",MLC_called_wear_num);
+#endif
+   }
   return (benefit + 1);
 }
 
@@ -737,6 +759,190 @@ int Comb_init(blk_t MLC_blk_num, blk_t extra_num )
 
   return 0;
 }
+
+/*********************************
+ * 
+ * Attention : this function to find cold blk in MLC and swap data
+ *********************************/
+void Comb_MLC_opm_wear_level(int target_blk_no)
+{
+
+	int merge_count;
+	int i,z, j,m,map_flag,q;
+	int k,old_flag,temp_arr[M_PAGE_NUM_PER_BLK],temp_arr1[M_PAGE_NUM_PER_BLK],map_arr[M_PAGE_NUM_PER_BLK]; 
+	int valid_flag,pos;
+	_u32 copy_lsn[M_SECT_NUM_PER_PAGE], copy[M_SECT_NUM_PER_PAGE];
+	_u16 valid_sect_num,  l, s;
+	_u32 old_ppn,new_ppn;
+	sect_t s_lsn;	// starting logical sector number
+    sect_t s_psn; // starting physical sector number 
+    _u32 wear_src_blk_no,wear_target_blk_no;
+    _u16 wear_src_page_no,wear_target_page_no;
+    
+	//	wear_src_blk_no=find_switch_cold_blk_method1(target_blk_no);
+	wear_src_blk_no = MLC_find_switch_cold_blk_method2(target_blk_no);
+	wear_target_blk_no = target_blk_no;
+	// target-blk-no nand_blk state free must to be 0
+	MLC_nand_blk[target_blk_no].state.free=0;
+	free_MLC_blk_num--;
+	
+	wear_src_page_no=0;
+	wear_target_page_no=0;
+
+	memset(copy_lsn, 0xFF, sizeof (copy_lsn));
+	
+	map_flag= -1;
+	for( q = 0; q < M_PAGE_NUM_PER_BLK; q++){
+		if(MLC_nand_blk[wear_src_blk_no].page_status[q] == 1){ //map block
+#ifdef WEARDEBUG
+	    	printf("wear level block gcc select Map blk no: %d\n",wear_src_blk_no);
+#endif
+			for( q = 0; q  < M_PAGE_NUM_PER_BLK; q++) {
+				if(MLC_nand_blk[wear_src_blk_no].page_status[q] == 0 ){
+					printf("something corrupted1=%d",wear_src_blk_no);
+        		}
+      		}
+      		map_flag = 0;
+      		break;
+    	} 
+    	else if(MLC_nand_blk[wear_src_blk_no].page_status[q] == 0){ //data block
+#ifdef WEARDEBUG
+			printf("wear level block gcc select Data blk no: %d\n",wear_src_blk_no);
+#endif
+			for( q = 0; q  < M_PAGE_NUM_PER_BLK; q++) {
+        		if(MLC_nand_blk[wear_src_blk_no].page_status[q] == 1 ){
+          			printf("something corrupted2=%d",wear_src_blk_no);
+        		}
+      		}
+      		map_flag = 1;
+      		break;
+    	}
+  	}
+	ASSERT ( map_flag== 0 || map_flag == 1);
+	
+ 	pos = 0;
+ 	merge_count = 0;
+ 	for (i = 0; i < M_PAGE_NUM_PER_BLK; i++) 
+ 	{
+		valid_flag = MLC_nand_oob_read( M_SECTOR(wear_src_blk_no, i * M_SECT_NUM_PER_PAGE));		
+   		if(valid_flag == 1)
+   		{
+	   		valid_sect_num = MLC_nand_page_read(M_SECTOR(wear_src_blk_no, i * M_SECT_NUM_PER_PAGE), copy, 1);
+	   		merge_count++;
+	   		ASSERT(valid_sect_num == M_SECT_NUM_PER_PAGE);
+	   		k=0;
+	   		for (j = 0; j < valid_sect_num; j++) {
+		 		copy_lsn[k] = copy[j];
+		 		k++;
+	   		}
+	   		
+		 	if(MLC_nand_blk[wear_src_blk_no].page_status[i] == 1)
+		 	{	
+				
+		   		MLC_mapdir[(copy_lsn[0]/M_SECT_NUM_PER_PAGE)].ppn =  M_BLK_PAGE_NO_SECT(M_SECTOR(wear_target_blk_no, wear_target_page_no));
+		   		MLC_opagemap[copy_lsn[0]/M_SECT_NUM_PER_PAGE].ppn =  M_BLK_PAGE_NO_SECT(M_SECTOR(wear_target_blk_no, wear_target_page_no));
+		   		MLC_nand_page_write(M_SECTOR(wear_target_blk_no,wear_target_page_no) & ( ~ M_OFF_MASK_SECT), copy_lsn, 1, 2);
+		   		wear_target_page_no += M_SECT_NUM_PER_PAGE;
+		 	}else{
+				old_ppn=MLC_opagemap[M_BLK_PAGE_NO_SECT(copy_lsn[0])].ppn;
+#ifdef WEARDEBUG
+				if(old_ppn != MLC_BLK_PAGE_NO_SECT(M_SECTOR(wear_src_blk_no, i * M_SECT_NUM_PER_PAGE))){
+					printf("debug :old ppn:%d\t MLC BLK_PAGE_NO_SECT:%d\n",old_ppn,M_BLK_PAGE_NO_SECT(M_SECTOR(wear_src_blk_no, i * M_SECT_NUM_PER_PAGE)));
+				}
+#endif
+		   		MLC_opagemap[M_BLK_PAGE_NO_SECT(copy_lsn[0])].ppn = M_BLK_PAGE_NO_SECT(M_SECTOR(wear_target_blk_no, wear_target_page_no));
+				new_ppn = M_BLK_PAGE_NO_SECT(M_SECTOR(wear_target_blk_no, wear_target_page_no));
+		   		MLC_nand_page_write(M_SECTOR(wear_target_blk_no, wear_target_page_no) & (~M_OFF_MASK_SECT), copy_lsn, 1, 1);
+		   		wear_target_page_no += M_SECT_NUM_PER_PAGE;
+		   		if((MLC_opagemap[M_BLK_PAGE_NO_SECT(copy_lsn[0])].map_status == MAP_REAL) || (MLC_opagemap[M_BLK_PAGE_NO_SECT(copy_lsn[0])].map_status == MAP_GHOST)) {
+			 		delay_flash_update++;
+					MLC_nand_ppn_2_lpn_in_CMT_arr[old_ppn]=0;
+					MLC_nand_ppn_2_lpn_in_CMT_arr[new_ppn]=1;
+		   		}
+		   		else {	
+			 		map_arr[pos] = copy_lsn[0];
+			 		pos++;
+		   		} 
+			}
+   		}else{
+			//unvalid page data
+   			s_lsn = MLC_nand_blk[wear_src_blk_no].sect[i*M_SECT_NUM_PER_PAGE].lsn;
+			for(k = 0 ; k < M_SECT_NUM_PER_PAGE ; k++){
+				copy_lsn[k] = s_lsn+k ;
+			}
+			s_psn = M_SECTOR(wear_target_blk_no, wear_target_page_no) & (~M_OFF_MASK_SECT);	
+			if(MLC_nand_blk[wear_src_blk_no].page_status[i] == 1){
+				MLC_nand_page_write(M_SECTOR(wear_target_blk_no, wear_target_page_no) & (~M_OFF_MASK_SECT), copy_lsn, 1, 2);
+			}else{
+				MLC_nand_page_write(M_SECTOR(wear_target_blk_no, wear_target_page_no) & (~M_OFF_MASK_SECT), copy_lsn, 1, 1);
+			}
+			wear_target_page_no+= M_SECT_NUM_PER_PAGE;
+			for(k = 0; k < M_SECT_NUM_PER_PAGE; k++){
+      			MLC_nand_invalidate(s_psn + k, s_lsn + k);
+    		} 
+   		}
+ 	}//end-for
+ #ifdef DEBUG
+	if(MLC_nand_blk[wear_target_blk_no].fpc !=0 ){
+		printf("nand blk %d is not write full\n",wear_target_blk_no);
+	}
+#endif 
+	for(i=0;i < M_PAGE_NUM_PER_BLK;i++) {
+		temp_arr[i]=-1;
+	}
+	k=0;
+	for(i =0 ; i < pos; i++) {
+		old_flag = 0;
+		for( j = 0 ; j < k; j++) {		
+			if(temp_arr[j] == MLC_mapdir[((map_arr[i]/M_SECT_NUM_PER_PAGE)/MLC_MAP_ENTRIES_PER_PAGE)].ppn) {
+				if(temp_arr[j] == -1){
+					printf("something wrong");
+					ASSERT(0);
+				}
+				old_flag = 1;
+				break;
+		 	}
+		}
+		if( old_flag == 0 ) {
+		 	temp_arr[k] = MLC_mapdir[((map_arr[i]/M_SECT_NUM_PER_PAGE)/MLC_MAP_ENTRIES_PER_PAGE)].ppn;
+		 	temp_arr1[k] = map_arr[i];
+		 	k++;
+		}
+	}//end-for
+	for ( i=0; i < k; i++) {
+		if (free_MLC_page_no[0] >= M_SECT_NUM_PER_BLK) {
+			if((free_MLC_blk_no[0] = nand_get_MLC_free_blk(1)) == -1){
+				printf("we are in big trouble shudnt happen");
+			}
+			free_MLC_page_no[0] = 0;
+		}
+		MLC_nand_page_read(temp_arr[i]*M_SECT_NUM_PER_PAGE,copy,1);
+
+		for(m = 0; m < M_SECT_NUM_PER_PAGE; m++){
+			MLC_nand_invalidate(MLC_mapdir[((temp_arr1[i]/M_SECT_NUM_PER_PAGE)/MLC_MAP_ENTRIES_PER_PAGE)].ppn * M_SECT_NUM_PER_PAGE + m, copy[m]);
+		} 
+		nand_stat(OOB_WRITE);
+		MLC_mapdir[((temp_arr1[i]/M_SECT_NUM_PER_PAGE)/MLC_MAP_ENTRIES_PER_PAGE)].ppn  = M_BLK_PAGE_NO_SECT(M_SECTOR(free_MLC_blk_no[0], free_MLC_page_no[0]));
+		MLC_opagemap[((temp_arr1[i]/M_SECT_NUM_PER_PAGE)/MLC_MAP_ENTRIES_PER_PAGE)].ppn = M_BLK_PAGE_NO_SECT(M_SECTOR(free_MLC_blk_no[0], free_MLC_page_no[0]));
+		MLC_nand_page_write(M_SECTOR(free_MLC_blk_no[0],free_MLC_page_no[0]) & (~M_OFF_MASK_SECT), copy, 1, 2);
+		free_MLC_page_no[0] += M_SECT_NUM_PER_PAGE;
+	}
+	
+   	if(merge_count == 0 ) 
+    	merge_switch_num++;
+  	else if(merge_count > 0 && merge_count < M_PAGE_NUM_PER_BLK)
+    	merge_partial_num++;
+  	else if(merge_count == M_PAGE_NUM_PER_BLK)
+    	merge_full_num++;
+  	else if(merge_count > M_PAGE_NUM_PER_BLK){
+    	printf("merge_count =%d PAGE_NUM_PER_BLK=%d",merge_count,M_PAGE_NUM_PER_BLK);
+    	ASSERT(0);
+  	}
+
+	MLC_nand_erase(wear_src_blk_no);
+	
+}//end-func
+
 
 struct ftl_operation Comb_operation = {
   init:  Comb_init,
