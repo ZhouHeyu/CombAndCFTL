@@ -123,9 +123,11 @@ int TwoMeans(int *arr,int size)
 	count = 1;
 	do{
 		last_MSEM = Ci.Msm + Cj.Msm;
-		printf("--------------iter-count %d-------------------------\n",count);
-		printf("Curr-Ci-Center-num is %d\t Curr-Cj-Center-num is  %d\n",Ci.Cluster_num,Cj.Cluster_num);
-		printf("Curr-MSM is %d\n",last_MSEM);
+//~ #ifdef DEBUG
+		//~ printf("--------------iter-count %d-------------------------\n",count);
+		//~ printf("Curr-Ci-Center-num is %d\t Curr-Cj-Center-num is  %d\n",Ci.Cluster_num,Cj.Cluster_num);
+		//~ printf("Curr-MSM is %d\n",last_MSEM);
+//~ #endif
 		data_allocate(arr,size);
 		Compute_arr_MSEM(&Ci);
 		Compute_arr_MSEM(&Cj);
@@ -133,7 +135,7 @@ int TwoMeans(int *arr,int size)
 		Reset_Cluster_Center(&Cj);
 		count ++;
 	}while(last_MSEM > (Ci.Msm + Cj.Msm));
-	printf("run finish\n");
+	//~ printf("run finish\n");
 	min_i = Ci.Cluster_num;
 	return min_i;
 }

@@ -307,7 +307,27 @@ _u32 SLC_stat_oob_read_num, SLC_stat_oob_write_num;
 _u32 MLC_stat_read_num, MLC_stat_write_num, MLC_stat_erase_num;
 _u32 MLC_stat_gc_read_num, MLC_stat_gc_write_num;
 _u32 MLC_stat_oob_read_num, MLC_stat_oob_write_num;
-
+/********MLC Wear Level Value and Function**************/
+#define STATIC_THRESHOLD 0
+#define DYNAMIC_THRESHOLD 1
+#define AVE_ADD_N_VAR 2
+extern int MLC_all_nand_ecn_counts;
+extern double MLC_global_nand_blk_wear_ave;
+extern double MLC_global_nand_blk_wear_std;
+extern double MLC_global_nand_blk_wear_var;
+extern double MLC_global_no_free_nand_blk_wear_ave;
+extern double MLC_wear_level_threshold;
+extern int  Wear_Threshold_Type;
+extern int MLC_called_wear_num;
+extern int MLC_last_called_wear_num;
+extern int N_wear_var;
+extern int * MLC_nand_pbn_2_lpn_in_CMT_arr;
+extern int * MLC_nand_ppn_2_lpn_in_CMT_arr;
+void MLC_nand_blk_ecn_ave_static();
+void MLC_nand_no_free_blk_ecn_ave_static();
+void MLC_nand_blk_ecn_std_var_static();
+void static_MLC_pbn_map_entry_in_CMT();
+void Select_Wear_Level_Threshold(int );
 
 #endif 
 

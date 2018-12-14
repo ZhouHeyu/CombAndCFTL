@@ -13,6 +13,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "flash.h"
 #include "ssd_interface.h"
 
@@ -26,13 +27,128 @@ struct SLC_nand_blk_info * SLC_tail;
 
 struct SLC_nand_blk_info * SLC_cold_head;
 struct SLC_nand_blk_info * SLC_cold_tail;
+static int * MLC_nand_blk_bit_map;
 double Comb_SLC_Hot_ratio = 0.75;
 int merge_switch_num;
 int merge_partial_num;
 int merge_full_num;
 
+int MLC_last_blk_pc;
+static int Min_N_Prime,Liner_S,Liner_L;
+int MLC_all_nand_ecn_counts;
 
+double MLC_global_nand_blk_wear_ave;
+double MLC_global_nand_blk_wear_std;
+double MLC_global_nand_blk_wear_var;
+double MLC_global_no_free_nand_blk_wear_ave;
+int MLC_min_nand_wear_ave = 1;
+
+int * MLC_nand_pbn_2_lpn_in_CMT_arr;
+int * MLC_nand_ppn_2_lpn_in_CMT_arr;
+double MLC_wear_level_threshold;
+int Wear_Threshold_Type = STATIC_THRESHOLD;
+int Wear_Session_Cycle = 1000;
+int static_wear_threshold = 20;
+double dynamic_wear_beta = 0.1;
+int MLC_last_called_wear_num;
+int MLC_called_wear_num;
+int N_wear_var = 3;
 int MIN_ERASE;
+
+/****************small inner function********************/
+/*
+* add zhoujie 11-8
+*/
+int isPrime(int n){
+	int aqr=0,i;
+	if(n <= 1) return 0;
+	aqr = (int)sqrt(1.0*n);
+	for(i = 2; i <= aqr; i++)
+	{
+		if (n % i == 0) return 0;
+	}
+	return 1;
+}
+/*
+* add zhoujie 11-9
+*/
+int FindMinPrime(int n){
+	int res=n;
+	while(1){
+		if(isPrime(res))
+			break;
+		res++;
+	}
+	return res;
+}
+
+void MLC_nand_blk_ecn_ave_static()
+{
+	int i;
+	_u32 all_ecn=0;
+	for(i = 0;i < nand_MLC_blk_num ; i++) {
+		all_ecn += MLC_nand_blk[i].state.ec;
+		if(all_ecn >= 4294967296){
+			printf("all ecn sum is over limit 4294967296\n");
+			assert(0);
+		}
+	}
+	MLC_all_nand_ecn_counts = all_ecn;
+	MLC_global_nand_blk_wear_ave = all_ecn* 1.0 /nand_MLC_blk_num;
+}
+
+void MLC_nand_no_free_blk_ecn_ave_static()
+{
+	int i,j=0;
+	_u32 all_ecn=0;
+	for(i=0 ; i <nand_MLC_blk_num;i++) {
+		if(MLC_nand_blk[i].state.free == 0 ){
+			all_ecn += MLC_nand_blk[i].state.ec;
+			j++;
+			if(all_ecn >= 4294967296){
+				printf("all ecn sum is over limit 4294967296\n");
+				assert(0);
+			}
+		}
+	}
+	MLC_global_no_free_nand_blk_wear_ave = all_ecn*1.0/j;
+}
+
+void MLC_nand_blk_ecn_std_var_static()
+{
+  int i;
+  double temp = 0.0;
+  MLC_nand_blk_ecn_ave_static();
+  for(i = 0 ; i < nand_MLC_blk_num ; i++){
+	temp += (MLC_nand_blk[i].state.ec - MLC_global_nand_blk_wear_ave) * \
+		(MLC_nand_blk[i].state.ec - MLC_global_nand_blk_wear_ave);
+  }
+  MLC_global_nand_blk_wear_std = temp / nand_MLC_blk_num;
+  MLC_global_nand_blk_wear_var = sqrt(MLC_global_nand_blk_wear_std);
+}
+
+/*
+* add zhoujie 11-10
+* static pbn MLC ppn to lpn entry in CMT count
+*/
+void static_MLC_pbn_map_entry_in_CMT()
+{
+	int i,j,k;
+	int blk_s,blk_e;
+	for( i=0 ; i < nand_MLC_blk_num; i++){
+		blk_s = M_PAGE_NUM_PER_BLK * i;
+		blk_e = M_PAGE_NUM_PER_BLK * (i+1);
+		k=0;
+		for( j = blk_s ; j < blk_e ; j++){
+			if ( MLC_nand_ppn_2_lpn_in_CMT_arr[j] == 1 ){
+				k++;	
+			}
+		}
+		MLC_nand_pbn_2_lpn_in_CMT_arr[i] = k;
+		MLC_nand_blk_bit_map[i] = k;
+	}
+}
+
 
 /**************** NAND STAT **********************/
 void nand_stat(int option)
@@ -544,6 +660,7 @@ void mix_nand_stat_reset()
   SLC_to_MLC_counts = 0;
   SLC_to_SLC_counts = 0;
   merge_switch_num = merge_partial_num = merge_full_num = 0;
+  MLC_last_called_wear_num = MLC_called_wear_num = 0;
 }
 
 void mix_nand_end ()
@@ -555,6 +672,10 @@ void mix_nand_end ()
   if (MLC_nand_blk != NULL) {
 	free(MLC_nand_blk);
     MLC_nand_blk = NULL;
+  }
+  if(MLC_nand_blk_bit_map != NULL){
+	free(MLC_nand_blk_bit_map);
+	MLC_nand_blk_bit_map = NULL;
   }
 }
 
@@ -575,6 +696,8 @@ int mix_nand_init (_u32 SLC_blk_num,_u32 MLC_blk_num, _u8 min_free_blk_num)
   memset(SLC_nand_blk, 0xFF, sizeof (struct SLC_nand_blk_info) * SLC_blk_num);
   memset(MLC_nand_blk, 0xFF, sizeof (struct MLC_nand_blk_info) * MLC_blk_num);
   
+  MLC_nand_blk_bit_map = (int *)malloc(sizeof (int) * MLC_blk_num);
+  memset(MLC_nand_blk_bit_map ,0 ,sizeof(int) * MLC_blk_num);
   nand_SLC_blk_num = SLC_blk_num;
   nand_MLC_blk_num = MLC_blk_num;
   pb_size = 1;
@@ -623,8 +746,28 @@ int mix_nand_init (_u32 SLC_blk_num,_u32 MLC_blk_num, _u8 min_free_blk_num)
   free_SLC_blk_num = nand_SLC_blk_num;
   free_MLC_blk_num = nand_MLC_blk_num;
   free_blk_idx =0;
-  mix_nand_stat_reset();
+ 
+  MLC_nand_pbn_2_lpn_in_CMT_arr=(int *)malloc( sizeof(int) * nand_MLC_blk_num);
+  MLC_nand_ppn_2_lpn_in_CMT_arr=(int *)malloc( sizeof(int) * nand_MLC_blk_num * M_PAGE_NUM_PER_BLK);
+  if (MLC_nand_pbn_2_lpn_in_CMT_arr == NULL || MLC_nand_ppn_2_lpn_in_CMT_arr == NULL )
+  {
+  	return -1;
+  }
+  memset(MLC_nand_ppn_2_lpn_in_CMT_arr,0,sizeof(int) * nand_MLC_blk_num * M_PAGE_NUM_PER_BLK);
+  memset(MLC_nand_pbn_2_lpn_in_CMT_arr,0,sizeof(int) * nand_MLC_blk_num );
+  /********MLC Wear Level***********/
+  Min_N_Prime=FindMinPrime(nand_MLC_blk_num);
+  Liner_S=(int) nand_MLC_blk_num * 0.5;
+  Liner_L=Liner_S;
+  MLC_all_nand_ecn_counts=0;
+  MLC_last_called_wear_num = MLC_called_wear_num = 0;
+  MLC_wear_level_threshold = 0;
+#ifdef DEBUG
+  printf("MLC blk_num is %d\tMinPrime is %d\n",nand_MLC_blk_num,Min_N_Prime);
+#endif
+  MLC_last_blk_pc=0;
   
+  mix_nand_stat_reset();
   return 0;
 }
 
@@ -1219,8 +1362,9 @@ void mix_nand_stat_print(FILE *outFP)
                                                                               map_blk_gc_trigger_map_write_num,
                                                                               map_blk_gc_trigger_map_write_num *2.0/((1024*1024)),
                                                                               map_blk_gc_trigger_map_write_num*1.0/translate_map_write_num);
-  fprintf(outFP, " SLC_to_MLC_counts (#): %8u\tconvert to Volume is %lf GB\n", SLC_to_MLC_counts, (SLC_to_MLC_counts * 4.0)/(1024 * 1024));
-  fprintf(outFP, " SLC_to_SLC_counts (#): %8u\tconvert to Volume is %lf GB\n", SLC_to_SLC_counts, (SLC_to_SLC_counts * 4.0)/(1024 * 1024));
+  fprintf(outFP, "SLC_to_MLC_counts (#): %8u\tconvert to Volume is %lf GB\n", SLC_to_MLC_counts, (SLC_to_MLC_counts * 4.0)/(1024 * 1024));
+  fprintf(outFP, "SLC_to_SLC_counts (#): %8u\tconvert to Volume is %lf GB\n", SLC_to_SLC_counts, (SLC_to_SLC_counts * 4.0)/(1024 * 1024));
+  fprintf(outFP, "MLC called Wear Level num is %d\n",MLC_called_wear_num);
   fprintf(outFP,"--------------------------------------------------------------\n");
   
   fprintf(outFP,"**************SLC ECN VALUE STATIC*****************************\n");
@@ -1267,3 +1411,110 @@ _u32 SLC_nand_get_cold_free_blk (int isGC)
   }
   return -1;
 }
+
+/**************************Wear Level Function*************************************************/
+_u32 MLC_find_switch_cold_blk_method1(int victim_blk_no)
+{
+	int i,min_bitmap_value = M_PAGE_NUM_PER_BLK;
+	
+	static_MLC_pbn_map_entry_in_CMT();
+	
+	for(i = 0 ;i < nand_MLC_blk_num; i++){
+		if(MLC_nand_blk_bit_map[i] < min_bitmap_value)
+			min_bitmap_value = MLC_nand_blk_bit_map[i];
+	}
+#ifdef DEBUG
+	if(min_bitmap_value > 0){
+		printf("MLC nand_blk_bit_map value all larger than 0!\n");
+	}
+#endif
+	while(1){
+		Liner_L=(Liner_S+Liner_L) % Min_N_Prime;
+		if(Liner_L < nand_MLC_blk_num ) {
+			// init time my_global_nand_blk_wear_ave is 0!
+			if (MLC_global_nand_blk_wear_ave < MLC_min_nand_wear_ave && MLC_nand_blk[Liner_L].fpc ==0 
+				&& MLC_nand_blk[Liner_L].state.free == 0 && MLC_nand_blk[Liner_L].ipc == 0 ){
+				break;
+			}
+			if(MLC_nand_blk[Liner_L].state.ec < MLC_global_nand_blk_wear_ave + MLC_min_nand_wear_ave
+				&& MLC_nand_blk_bit_map[Liner_L] == min_bitmap_value 
+				&& MLC_nand_blk[Liner_L].state.free ==0 && MLC_nand_blk[Liner_L].fpc == 0 && MLC_nand_blk[Liner_L].ipc == 0){
+					break;
+			}
+		}
+
+	}
+	return (_u32)Liner_L;
+}
+/********************************************
+ *  Cycle run find cold data blk with min ecn
+ ******************************************/
+_u32 MLC_find_switch_cold_blk_method2(int victim_blk_no)
+{
+	int i,min_bitmap_value = M_PAGE_NUM_PER_BLK;
+	static_MLC_pbn_map_entry_in_CMT();
+	
+	for(i = 0 ;i < nand_MLC_blk_num; i++){
+		if(MLC_nand_blk_bit_map[i] < min_bitmap_value)
+			min_bitmap_value = MLC_nand_blk_bit_map[i];
+	}
+#ifdef DEBUG
+	if(min_bitmap_value > 0){
+		printf("nand_blk_bit_map value all larger than 0!\n");
+	}
+#endif
+	while(1){
+		if( MLC_last_blk_pc >= nand_MLC_blk_num )
+			MLC_last_blk_pc = 0;
+
+		if (MLC_global_nand_blk_wear_ave < MLC_min_nand_wear_ave && MLC_nand_blk[MLC_last_blk_pc].fpc ==0 
+				&& MLC_nand_blk[MLC_last_blk_pc].state.free == 0){
+				break;
+		}
+		
+		if( MLC_nand_blk[MLC_last_blk_pc].state.ec < (MLC_global_nand_blk_wear_ave + MLC_min_nand_wear_ave)
+			&& MLC_nand_blk_bit_map[MLC_last_blk_pc] == min_bitmap_value 
+			&& MLC_nand_blk[MLC_last_blk_pc].state.free ==0 && MLC_nand_blk[MLC_last_blk_pc].fpc ==0 ) {
+			break;
+		}
+		
+		MLC_last_blk_pc++;
+	}
+	return MLC_last_blk_pc;
+}
+
+/*
+* add zhoujie 11-13
+* funciton : to select Wear-level threshold and update
+*/
+void Select_Wear_Level_Threshold(int Type)
+{
+	 double temp;
+	 switch(Type){
+		case STATIC_THRESHOLD: 
+			MLC_wear_level_threshold = static_wear_threshold;
+			break;
+		case DYNAMIC_THRESHOLD:
+			if(MLC_stat_erase_num % Wear_Session_Cycle == 0 && MLC_called_wear_num != 0 ){
+				temp = (MLC_called_wear_num - MLC_last_called_wear_num) *1.0 / nand_MLC_blk_num;
+				MLC_wear_level_threshold = sqrt(100 / dynamic_wear_beta) * sqrt(temp * MLC_wear_level_threshold);
+	#ifdef DEBUG
+				printf("----------------------------------\n");
+				printf("curr stat_erase_num is %d\t,Session Cycle is %d\n",MLC_stat_erase_num,Wear_Session_Cycle);
+				printf("Session called wear num is %d\n",MLC_called_wear_num-MLC_last_called_wear_num);
+				printf("my_wear_level_threshold is %lf\n",MLC_wear_level_threshold);
+				printf("----------------------------------\n");
+				
+	#endif
+				MLC_last_called_wear_num = MLC_called_wear_num;
+			}
+
+			break;
+		case  AVE_ADD_N_VAR:
+			MLC_nand_blk_ecn_std_var_static();
+			MLC_wear_level_threshold = N_wear_var * MLC_global_nand_blk_wear_var;
+			break;
+		default : break;
+	 }
+}
+

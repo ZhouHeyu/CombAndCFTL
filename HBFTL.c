@@ -486,7 +486,7 @@ void HBFTL_MLC_No_Hit_CMT(int blkno,int operation)
 				send_flash_request(((min_ghost-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE) * M_SECT_NUM_PER_PAGE, M_SECT_NUM_PER_PAGE, 0, 2);   
 			}
 			MLC_opagemap[min_ghost].map_status = MAP_INVALID;
-			
+			MLC_nand_ppn_2_lpn_in_CMT_arr[MLC_opagemap[min_ghost].ppn] = 0;
 			mix_find_real_min();
 			MLC_opagemap[real_min].map_status = MAP_GHOST;
 			pos = search_table(ghost_arr, MAP_GHOST_MAX_ENTRIES,min_ghost);
@@ -512,6 +512,9 @@ void HBFTL_MLC_No_Hit_CMT(int blkno,int operation)
 	}
 	// read from 2nd mapping table load into CMT
 	send_flash_request( ((blkno - MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE * M_SECT_NUM_PER_PAGE), M_SECT_NUM_PER_PAGE, 1, 2);
+	//to do 
+	MLC_nand_ppn_2_lpn_in_CMT_arr[MLC_opagemap[blkno].ppn] = 1;
+	
 	MLC_opagemap[blkno].map_status = MAP_REAL;
 	MLC_opagemap[blkno].map_age = operation_time;
 	real_max = blkno;
