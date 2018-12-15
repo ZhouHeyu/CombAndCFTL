@@ -1364,6 +1364,7 @@ void mix_nand_stat_print(FILE *outFP)
                                                                               map_blk_gc_trigger_map_write_num*1.0/translate_map_write_num);
   fprintf(outFP, "SLC_to_MLC_counts (#): %8u\tconvert to Volume is %lf GB\n", SLC_to_MLC_counts, (SLC_to_MLC_counts * 4.0)/(1024 * 1024));
   fprintf(outFP, "SLC_to_SLC_counts (#): %8u\tconvert to Volume is %lf GB\n", SLC_to_SLC_counts, (SLC_to_SLC_counts * 4.0)/(1024 * 1024));
+ #ifdef WEAROPEN
   fprintf(outFP,"----------------------MLC---Wear---Level-----Alogrithm----------\n");
   MLC_nand_blk_ecn_std_var_static();
   Select_Wear_Level_Threshold(Wear_Threshold_Type);
@@ -1383,6 +1384,7 @@ void mix_nand_stat_print(FILE *outFP)
 	default :
 		break;
   }
+ #endif
   fprintf(outFP,"--------------------------------------------------------------\n");
   
   fprintf(outFP,"**************SLC ECN VALUE STATIC*****************************\n");

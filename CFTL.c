@@ -406,11 +406,11 @@ int CFTL_MLC_opm_gc_run(int small, int mapdir_flag)
   }
   MLC_nand_erase(victim_blk_no);
   //check blk ecn to triggle wear alogrithm
+ #ifdef WEAROPNE
    Select_Wear_Level_Threshold(Wear_Threshold_Type);
    if(MLC_nand_blk[victim_blk_no].state.ec > (int)(MLC_global_nand_blk_wear_ave + MLC_wear_level_threshold)){
 		CFTL_MLC_opm_wear_level(victim_blk_no);
 		MLC_called_wear_num ++;
-#ifdef DEBUG
 		switch(Wear_Threshold_Type){
 				case STATIC_THRESHOLD: 
 					printf("THRESHOLD TYPE is static threshold\n");
@@ -424,8 +424,8 @@ int CFTL_MLC_opm_gc_run(int small, int mapdir_flag)
 				default : assert(0);break;
 		}
 		printf("MLC called opm wear level %d\n",MLC_called_wear_num);
-#endif
    }
+ #endif
   return (benefit + 1);
 }
 
